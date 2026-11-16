@@ -3,6 +3,13 @@
 All notable changes to Sky Glance are listed here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-11-16
+
+### Fixed
+- The city list in the flyout and the right-click menu now follow the app's light or dark theme.
+- Disabled buttons in Settings no longer show their text in near-black on the dark theme.
+- The place name in the flyout always opens the city list, with "Manage cities", even before any city is saved.
+
 ## [1.0.0] - 2026-11-16
 
 ### Added
@@ -19,4 +26,5 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Settings > Updates links to the project page on GitHub.
 - Auto-updates from GitHub Releases with SHA-256 verification.
 
+[1.0.1]: https://github.com/medovanx/sky-glance/releases/tag/v1.0.1
 [1.0.0]: https://github.com/medovanx/sky-glance/releases/tag/v1.0.0
