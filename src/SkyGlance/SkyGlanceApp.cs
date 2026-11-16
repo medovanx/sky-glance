@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 
 namespace SkyGlance;
 
@@ -7,8 +7,27 @@ sealed class SkyGlanceApp : ApplicationContext
     public AppSettings S { get; private set; }
     public Icon AppIcon { get; }
 
-    /// <summary>The latest forecast, fresh or from the cache; null until the first one arrives.</summary>
-    public Forecast? Forecast { get; private set; }
+    /// <summary>The last forecast of every place, fresh or from the cache, keyed by <see cref="Place.Key"/>.</summary>
+    readonly Dictionary<string, Forecast> forecasts;
+
+    /// <summary>The place shown: my location (detected or chosen) or one of the saved cities; null until my location is known.</summary>
+    public Place? ActivePlace
+    {
+        get
+        {
+            int i = CityCycle.Clamp(S.ActiveCity, S.Cities.Count);
+            if (i >= 0) return S.Cities[i];
+            return S.HasLocation ? new Place(S.LocationName, S.Latitude, S.Longitude) : null;
+        }
+    }
+
+    /// <summary>The forecast of the place shown, fresh or from the cache; null until the first one arrives.</summary>
+    public Forecast? Forecast => ActivePlace is { } p && forecasts.TryGetValue(p.Key, out var f) ? f : null;
+    /// <summary>The hottest and coldest watched places right now; null until fetched (hourly) or when turned off.</summary>
+    public Extremes? World { get; private set; }
+    DateTime nextWorldUtc = DateTime.MinValue;
+    bool fetchingWorld;
+
     /// <summary>True when the last refresh failed (offline, Open-Meteo down).</summary>
     public bool LastFetchFailed { get; private set; }
     public bool Fetching { get; private set; }
@@ -30,16 +49,14 @@ sealed class SkyGlanceApp : ApplicationContext
     /// <summary>Raised when the forecast or the settings change.</summary>
     public event Action? Changed;
 
-    public SkyGlanceApp(AppSettings? settings = null, Forecast? demo = null)
+    public SkyGlanceApp(AppSettings? settings = null, Dictionary<string, Forecast>? demo = null, Extremes? demoWorld = null)
     {
         Headless = settings != null;
         S = settings ?? AppSettings.Load();
         L.Ar = S.Language == "ar";
         AppIcon = LoadIcon();
-        Forecast = demo ?? (Headless ? null : ForecastStore.Load());
-        // A cached forecast for another place than the one now set is useless.
-        if (!Headless && Forecast != null && (!S.HasLocation || Distance(Forecast.Latitude, Forecast.Longitude, S.Latitude, S.Longitude) > 0.2))
-            Forecast = null;
+        forecasts = demo ?? (Headless ? [] : ForecastStore.Load());
+        World = demoWorld;
 
         host = new HostWindow(this);
         menu.Opening += (_, e) => { BuildMenu(); e.Cancel = false; };
@@ -54,6 +71,7 @@ sealed class SkyGlanceApp : ApplicationContext
 
         tray.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ToggleFlyout(); };
         widget.Clicked += ToggleFlyout;
+        widget.Wheeled += steps => { if (S.Cities.Count > 0) Cycle(steps); };
         widget.RightClicked += () =>
         {
             Native.SetForegroundWindow(host.Handle);
@@ -79,8 +97,6 @@ sealed class SkyGlanceApp : ApplicationContext
         updateTimer.Start(); // first check 45 s after start, then every 6 hours
     }
 
-    static double Distance(double lat1, double lon1, double lat2, double lon2) => Math.Abs(lat1 - lat2) + Math.Abs(lon1 - lon2);
-
     static Icon LoadIcon()
     {
         using var stream = typeof(SkyGlanceApp).Assembly.GetManifestResourceStream("app.ico");
@@ -91,6 +107,7 @@ sealed class SkyGlanceApp : ApplicationContext
     {
         widget.Ensure(); // handles Explorer restarts and tray width changes
         if (DateTime.UtcNow >= nextFetchUtc && !Fetching) _ = RefreshAsync();
+        if (S.ShowExtremes && DateTime.UtcNow >= nextWorldUtc && !fetchingWorld) _ = RefreshWorldAsync();
         UpdateWidget(); // the current hour moves on even between fetches
     }
 
@@ -100,7 +117,7 @@ sealed class SkyGlanceApp : ApplicationContext
         if (at < nextFetchUtc) nextFetchUtc = at;
     }
 
-    /// <summary>Finds the location if needed, then fetches the forecast. Returns false when it couldn't.</summary>
+    /// <summary>Finds my location if needed, then fetches the forecast of the place shown. Returns false when it couldn't.</summary>
     public async Task<bool> RefreshAsync()
     {
         if (Headless || Fetching) return false;
@@ -115,14 +132,15 @@ sealed class SkyGlanceApp : ApplicationContext
                 if (loc != null) SetLocation(S, loc);
                 S.Save();
             }
-            if (!S.HasLocation) { LastFetchFailed = false; nextFetchUtc = DateTime.UtcNow.AddMinutes(2); return false; }
+            if (ActivePlace is not { } place) { LastFetchFailed = false; nextFetchUtc = DateTime.UtcNow.AddMinutes(2); return false; }
 
-            var f = await WeatherService.FetchAsync(S.Latitude, S.Longitude);
-            Forecast = f;
+            // Stored under the coordinates asked for: Open-Meteo snaps them to its grid in the answer.
+            var f = await WeatherService.FetchAsync(place.Latitude, place.Longitude);
+            forecasts[place.Key] = f;
             LastFetchFailed = false;
             failures = 0;
             nextFetchUtc = DateTime.UtcNow.AddMinutes(Math.Clamp(S.RefreshMinutes, 5, 180));
-            ForecastStore.Save(f);
+            SaveForecasts();
             return true;
         }
         catch (Exception ex)
@@ -141,6 +159,58 @@ sealed class SkyGlanceApp : ApplicationContext
             Changed?.Invoke();
         }
     }
+
+    /// <summary>Fetches the world extremes; every hour, or after 10 minutes when it failed.</summary>
+    async Task RefreshWorldAsync()
+    {
+        if (Headless) return;
+        fetchingWorld = true;
+        try
+        {
+            World = await WeatherService.FetchExtremesAsync() ?? World;
+            nextWorldUtc = DateTime.UtcNow.AddHours(1);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex);
+            nextWorldUtc = DateTime.UtcNow.AddMinutes(10);
+        }
+        finally
+        {
+            fetchingWorld = false;
+            Changed?.Invoke();
+        }
+    }
+
+    /// <summary>Saves the cache, dropping places that are no longer my location or a saved city.</summary>
+    void SaveForecasts()
+    {
+        var keep = S.Cities.Select(c => c.Key).ToHashSet();
+        if (S.HasLocation) keep.Add(Place.KeyOf(S.Latitude, S.Longitude));
+        foreach (var k in forecasts.Keys.Where(k => !keep.Contains(k)).ToList()) forecasts.Remove(k);
+        ForecastStore.Save(forecasts);
+    }
+
+    /// <summary>Shows saved city <paramref name="index"/> (-1 = my location) and fetches it if its forecast is old.</summary>
+    public void SwitchTo(int index)
+    {
+        index = CityCycle.Clamp(index, S.Cities.Count);
+        if (index == S.ActiveCity) return;
+        S.ActiveCity = index;
+        if (!Headless) S.Save();
+        LastFetchFailed = false;
+        UpdateWidget();
+        Changed?.Invoke();
+        if (Forecast == null || (DateTime.UtcNow - Forecast.FetchedUtc).TotalMinutes >= Math.Min(S.RefreshMinutes, 30))
+            nextFetchUtc = DateTime.UtcNow; // the next tick fetches; a fetch running now for the old city finishes first
+    }
+
+    /// <summary>Moves to the next (+1) or previous (-1) place.</summary>
+    public void Cycle(int steps) => SwitchTo(CityCycle.Step(S.ActiveCity, S.Cities.Count, steps));
+
+    /// <summary>Display name of place <paramref name="index"/> (-1 = my location).</summary>
+    public string PlaceName(int index) => index >= 0 && index < S.Cities.Count ? S.Cities[index].Name
+        : S.HasLocation ? S.LocationName : L.T("MyLocation");
 
     public static void SetLocation(AppSettings s, LocResult loc)
     {
@@ -179,7 +249,7 @@ sealed class SkyGlanceApp : ApplicationContext
         string cond = now is { } m ? L.Condition(m.code) : !S.HasLocation ? L.T("Location") : "";
         widget.SetContent(t, cond, S.ShowHighLow ? HighLow() ?? "" : null, now is { } k ? WeatherCode.Icon(k.code) : SkyIcon.Cloudy, now?.day ?? true, S.ShowCondition, L.Ar);
         string tip = now is { } p
-            ? $"{L.T("AppName")}: {S.LocationName}\n{UnitFormat.Temperature(p.tempC, S.Temperature)} {L.Condition(p.code)}"
+            ? $"{L.T("AppName")}: {ActivePlace?.Name}\n{UnitFormat.Temperature(p.tempC, S.Temperature)} {L.Condition(p.code)}"
             : $"{L.T("AppName")}\n{(S.HasLocation ? L.T("Loading") : L.T("NoLocation"))}";
         tray.Text = tip.Length <= 127 ? tip : tip[..127];
     }
@@ -203,6 +273,23 @@ sealed class SkyGlanceApp : ApplicationContext
         if (Forecast == null || (DateTime.UtcNow - Forecast.FetchedUtc).TotalMinutes >= 10) _ = RefreshAsync();
     }
 
+    DayForm? dayForm;
+
+    /// <summary>Opens "weather on a date", on <paramref name="date"/> or today.</summary>
+    public void ShowCalendar(DateOnly? date = null)
+    {
+        flyout?.Hide();
+        if (dayForm is { IsDisposed: false })
+        {
+            if (date is { } d) dayForm.ShowDate(d);
+            dayForm.Activate();
+            return;
+        }
+        dayForm = new DayForm(this, date);
+        dayForm.Show();
+        dayForm.Activate();
+    }
+
     public void ShowSettings(int page = 0)
     {
         flyout?.Hide();
@@ -216,8 +303,9 @@ sealed class SkyGlanceApp : ApplicationContext
     public void ApplySettings(AppSettings s)
     {
         bool langChanged = s.Language != S.Language;
-        bool placeChanged = s.HasLocation != S.HasLocation || s.Latitude != S.Latitude || s.Longitude != S.Longitude
-                            || (s.AutoLocation && !S.AutoLocation);
+        s.ActiveCity = CityCycle.Clamp(s.ActiveCity, s.Cities.Count);
+        string? before = ActivePlace?.Key;
+        bool redetect = s.AutoLocation && !S.AutoLocation;
         if (s.AutoLocation && !S.AutoLocation) s.LocationUpdatedUtc = DateTime.MinValue; // detect again now
         S = s;
         L.Ar = S.Language == "ar";
@@ -227,11 +315,13 @@ sealed class SkyGlanceApp : ApplicationContext
         {
             flyout?.Dispose();
             flyout = null;
+            if (dayForm is { IsDisposed: false }) dayForm.Close();
         }
-        if (placeChanged)
+        if (redetect || ActivePlace?.Key != before || Forecast == null)
         {
-            Forecast = null;
-            _ = RefreshAsync();
+            LastFetchFailed = false;
+            nextFetchUtc = DateTime.UtcNow;
+            if (!Fetching) _ = RefreshAsync();
         }
         else if (DateTime.UtcNow.AddMinutes(S.RefreshMinutes) < nextFetchUtc) nextFetchUtc = DateTime.UtcNow.AddMinutes(S.RefreshMinutes);
         UpdateWidget();
@@ -289,7 +379,23 @@ sealed class SkyGlanceApp : ApplicationContext
         menu.RightToLeft = L.Ar ? RightToLeft.Yes : RightToLeft.No;
         menu.Items.Add(L.T("ShowWeather"), null, (_, _) => ShowFlyout()).Font = new Font(menu.Font, FontStyle.Bold);
         menu.Items.Add(L.T("RefreshNow"), null, async (_, _) => await RefreshAsync());
-        menu.Items.Add(L.T("ChangeLocation"), null, (_, _) => ShowSettings(SettingsForm.LocationPage));
+        menu.Items.Add(L.T("WeatherOnDate") + "...", null, (_, _) => ShowCalendar());
+        if (S.Cities.Count > 0)
+        {
+            var cityMenu = new ToolStripMenuItem(L.T("City"));
+            for (int i = -1; i < S.Cities.Count; i++)
+            {
+                int index = i;
+                var item = new ToolStripMenuItem(i < 0 ? $"{PlaceName(-1)} ({L.T("MyLocation")})" : PlaceName(i)) { Checked = CityCycle.Clamp(S.ActiveCity, S.Cities.Count) == i };
+                item.Click += (_, _) => SwitchTo(index);
+                cityMenu.DropDownItems.Add(item);
+            }
+            cityMenu.DropDownItems.Add(new ToolStripSeparator());
+            cityMenu.DropDownItems.Add(L.T("ManageCities"), null, (_, _) => ShowSettings(SettingsForm.LocationPage));
+            menu.Items.Add(cityMenu);
+        }
+        else
+            menu.Items.Add(L.T("ChangeLocation"), null, (_, _) => ShowSettings(SettingsForm.LocationPage));
 
         var unitMenu = new ToolStripMenuItem(L.T("TempUnitMenu"));
         foreach (var (u, key) in new[] { (TemperatureUnit.Celsius, "Celsius"), (TemperatureUnit.Fahrenheit, "Fahrenheit") })

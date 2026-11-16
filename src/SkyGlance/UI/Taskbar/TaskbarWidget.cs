@@ -1,4 +1,4 @@
-﻿using System.Drawing.Drawing2D;
+using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
 using static SkyGlance.Interop.Native;
@@ -15,12 +15,14 @@ sealed class TaskbarWidget : NativeWindow
 {
     const int WS_CHILD = 0x40000000, WS_CLIPSIBLINGS = 0x04000000;
     const int WS_EX_LAYERED = 0x80000, WS_EX_TOOLWINDOW = 0x80, WS_EX_NOACTIVATE = 0x08000000;
-    const int WM_MOUSEMOVE = 0x200, WM_LBUTTONUP = 0x202, WM_RBUTTONUP = 0x205, WM_MOUSELEAVE = 0x2A3, WM_MOUSEACTIVATE = 0x21;
+    const int WM_MOUSEWHEEL = 0x20A, WM_MOUSEMOVE = 0x200, WM_LBUTTONUP = 0x202, WM_RBUTTONUP = 0x205, WM_MOUSELEAVE = 0x2A3, WM_MOUSEACTIVATE = 0x21;
 
     public event Action? Clicked;
     /// <summary>True when the mouse enters the widget, false when it leaves.</summary>
     public event Action<bool>? HoverChanged;
     public event Action? RightClicked;
+    /// <summary>Mouse wheel over the widget: +1 per notch towards the user (next), -1 away (previous).</summary>
+    public event Action<int>? Wheeled;
 
     IntPtr tray;
     string temp = "--", condition = "", hiLo = "";
@@ -273,8 +275,9 @@ sealed class TaskbarWidget : NativeWindow
     /// </summary>
     public static Bitmap Paint(string temp, string condition, string? highLow, SkyIcon icon, bool isDay, bool withCondition, bool hover, bool rtl, bool dark, float s, int h)
     {
-        using var fTemp = new Font("Segoe UI Semibold", (withCondition ? 13f : 15f) * s, GraphicsUnit.Pixel);
-        using var fCond = new Font("Segoe UI", 11f * s, GraphicsUnit.Pixel);
+        // Same sizes as the sibling widgets (Data Tide 13.5 px Semibold, Salaty Reminder 12 px), so they read as one family.
+        using var fTemp = new Font("Segoe UI Semibold", (withCondition ? 13.5f : 15f) * s, GraphicsUnit.Pixel);
+        using var fCond = new Font("Segoe UI", 12.5f * s, GraphicsUnit.Pixel);
         float tempW, hlW = 0, tempNow;
         using (var probe = new Bitmap(1, 1))
         using (var pg = Graphics.FromImage(probe))
@@ -285,9 +288,9 @@ sealed class TaskbarWidget : NativeWindow
             // Room for the widest likely high and low, so the width doesn't change with the weather.
             if (highLow != null) hlW = Math.Max(pg.MeasureString("\u219188\u00B0 \u2193-88\u00B0", fCond).Width, pg.MeasureString(highLow, fCond).Width);
         }
-        int pad = (int)(8 * s), iconS = (int)Math.Min(h - 14 * s, 30 * s), gap = (int)(6 * s), hlGap = (int)(4 * s);
+        int pad = (int)(9 * s), iconS = (int)Math.Min(h - 14 * s, 30 * s), gap = (int)(7 * s), hlGap = (int)(5 * s);
         float topW = tempW + (highLow != null ? hlGap + hlW : 0);
-        int textW = (int)Math.Ceiling(withCondition ? Math.Max(topW, 92 * s) : topW);
+        int textW = (int)Math.Ceiling(withCondition ? Math.Max(topW, 100 * s) : topW);
         int w = pad + iconS + gap + textW + pad;
 
         var bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
@@ -327,7 +330,7 @@ sealed class TaskbarWidget : NativeWindow
             using var bd = new SolidBrush(dim);
             float tH = fTemp.GetHeight(g);
             float cH = fCond.GetHeight(g);
-            float y1 = withCondition && condition.Length > 0 ? (h - (tH + cH - 3 * s)) / 2 : (h - tH) / 2;
+            float y1 = withCondition && condition.Length > 0 ? (h - (tH + cH - 4 * s)) / 2 : (h - tH) / 2;
             g.DrawString(temp, fTemp, b, new RectangleF(textX, y1, textW, tH), tf);
             if (!string.IsNullOrEmpty(highLow))
             {
@@ -339,7 +342,7 @@ sealed class TaskbarWidget : NativeWindow
                 g.DrawString(highLow, fCond, bd, new RectangleF(hlX, hlY, hlW + 2 * s, cH), hf);
             }
             if (withCondition && condition.Length > 0)
-                g.DrawString(condition, fCond, bd, new RectangleF(textX, y1 + tH - 3 * s, textW, cH), sf);
+                g.DrawString(condition, fCond, bd, new RectangleF(textX, y1 + tH - 4 * s, textW, cH), sf);
         }
         return bmp;
     }
@@ -368,6 +371,11 @@ sealed class TaskbarWidget : NativeWindow
                 return;
             case WM_RBUTTONUP:
                 RightClicked?.Invoke();
+                return;
+            case WM_MOUSEWHEEL:
+                int delta = (short)((long)m.WParam >> 16 & 0xFFFF);
+                if (delta != 0) Wheeled?.Invoke(delta < 0 ? 1 : -1);
+                m.Result = IntPtr.Zero;
                 return;
         }
         base.WndProc(ref m);

@@ -9,11 +9,14 @@ namespace SkyGlance.UI.Flyout;
 /// </summary>
 sealed class WeatherFlyout : Form
 {
-    const int W = 380, HeaderH = 136, TileH = 46, HourlyH = 128, DayH = 26, Pad = 16, Gap = 12, ButtonH = 34;
+    const int W = 380, HeaderH = 142, TileH = 46, HourlyH = 128, DayH = 26, Pad = 16, Gap = 12, ButtonH = 34;
 
     readonly SkyGlanceApp app;
-    readonly IconButton btnRefresh = new(), btnLocation = new(), btnSettings = new();
+    readonly IconButton btnRefresh = new(), btnCalendar = new(), btnLocation = new(), btnSettings = new();
+    readonly List<(Rectangle row, DateOnly date)> dayHits = [];
     bool dark, activated;
+    Rectangle placeHit = Rectangle.Empty;
+    readonly ContextMenuStrip cityMenu = new();
     int dayRows = 7;
     public DateTime LastHidden { get; private set; }
 
@@ -31,11 +34,19 @@ sealed class WeatherFlyout : Form
         btnRefresh.Glyph = Art.IconRefresh;
         btnLocation.Glyph = Art.IconLocation;
         btnSettings.Glyph = Art.IconSettings;
-        Controls.AddRange([btnRefresh, btnLocation, btnSettings]);
+        btnCalendar.Glyph = Art.IconCalendar;
+        Controls.AddRange([btnRefresh, btnCalendar, btnLocation, btnSettings]);
+        btnCalendar.Click += (_, _) => { Hide(); app.ShowCalendar(); };
         btnRefresh.Click += async (_, _) => await RefreshNowAsync();
         btnLocation.Click += (_, _) => { Hide(); app.ShowSettings(SettingsForm.LocationPage); };
         btnSettings.Click += (_, _) => { Hide(); app.ShowSettings(); };
-        KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) Hide(); else if (e.KeyCode == Keys.F5) _ = RefreshNowAsync(); };
+        KeyDown += (_, e) =>
+        {
+            if (e.KeyCode == Keys.Escape) Hide();
+            else if (e.KeyCode == Keys.F5) _ = RefreshNowAsync();
+            // Left and right step through the cities, in reading order.
+            else if (e.KeyCode is Keys.Left or Keys.Right && app.S.Cities.Count > 0) app.Cycle((e.KeyCode == Keys.Right) != Rtl ? 1 : -1);
+        };
         app.Changed += () => { if (Visible && !IsDisposed) { Relayout(); Invalidate(); } };
     }
 
@@ -72,8 +83,14 @@ sealed class WeatherFlyout : Form
     bool HasData => app.Forecast != null;
 
     int BodyHeight(int days) => HasData
-        ? Gap + TileH * 2 + 6 + Gap + HourlyH + Gap + 26 + days * DayH + 8 + 18 + 8
+        ? Gap + TileH * 2 + 6 + Gap + HourlyH + Gap + 26 + days * DayH + WorldHeight + 8 + 18 + 8
         : 90;
+
+    const int WorldRowH = 30;
+    bool worldFits = true;
+    bool ShowWorld => worldFits && app.S.ShowExtremes && app.World != null;
+    /// <summary>The "right now on Earth" card: a title line and a row each for the hottest and coldest place.</summary>
+    int WorldHeight => ShowWorld ? Gap + 26 + WorldRowH * 2 + 6 : 0;
 
     int ContentHeight(int days) => HeaderH + BodyHeight(days) + ButtonH + Pad;
 
@@ -86,7 +103,8 @@ sealed class WeatherFlyout : Form
         btnRefresh.Text = L.T("Refresh");
         btnLocation.Text = L.T("Location");
         btnSettings.Text = L.T("Settings");
-        foreach (var b in new[] { btnRefresh, btnLocation, btnSettings }) { b.Theme = theme; b.RightToLeft = RightToLeft; b.Invalidate(); }
+        btnCalendar.Text = L.T("CalendarButton");
+        foreach (var b in new[] { btnRefresh, btnCalendar, btnLocation, btnSettings }) { b.Theme = theme; b.RightToLeft = RightToLeft; b.Invalidate(); }
         btnSettings.Primary = true;
     }
 
@@ -120,12 +138,18 @@ sealed class WeatherFlyout : Form
         Location = new Point(-4000, -4000);
     }
 
-    /// <summary>Shows as many days as fit on the screen (at least three), so the flyout never runs off it at high scaling.</summary>
+    /// <summary>
+    /// Shows as many days as fit on the screen (at least three), then drops the world card if needed,
+    /// so the flyout never runs off the screen at high scaling.
+    /// </summary>
     void FitDays(int maxHeight)
     {
         int available = app.Forecast?.DaysFrom(app.LocalNow).Count ?? 0;
         dayRows = Math.Min(7, available);
+        worldFits = true;
         while (dayRows > 3 && Px(ContentHeight(dayRows)) > maxHeight) dayRows--;
+        // Still too tall for a small screen at high scaling: the world card goes before the forecast does.
+        if (Px(ContentHeight(dayRows)) > maxHeight) worldFits = false;
         Height = Px(ContentHeight(dayRows));
     }
 
@@ -140,10 +164,55 @@ sealed class WeatherFlyout : Form
 
     void LayoutButtons()
     {
-        int pad = Px(Pad), gap = Px(8), bh = Px(ButtonH);
-        int bw = (Width - pad * 2 - gap * 2) / 3, by = Height - pad - bh;
-        var order = Rtl ? new[] { btnSettings, btnLocation, btnRefresh } : [btnRefresh, btnLocation, btnSettings];
-        for (int i = 0; i < 3; i++) order[i].Bounds = new Rectangle(pad + i * (bw + gap), by, bw, bh);
+        int pad = Px(Pad), gap = Px(6), bh = Px(ButtonH);
+        int bw = (Width - pad * 2 - gap * 3) / 4, by = Height - pad - bh;
+        var order = Rtl ? new[] { btnSettings, btnLocation, btnCalendar, btnRefresh } : [btnRefresh, btnCalendar, btnLocation, btnSettings];
+        for (int i = 0; i < 4; i++) order[i].Bounds = new Rectangle(pad + i * (bw + gap), by, bw, bh);
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        Cursor = placeHit.Contains(e.Location) || dayHits.Any(d => d.row.Contains(e.Location)) ? Cursors.Hand : Cursors.Default;
+    }
+
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        if (e.Y < Px(HeaderH) && app.S.Cities.Count > 0) app.Cycle(e.Delta < 0 ? 1 : -1);
+    }
+
+    protected override void OnMouseClick(MouseEventArgs e)
+    {
+        base.OnMouseClick(e);
+        if (e.Button != MouseButtons.Left) return;
+        // A day of the 7-day forecast opens it in the calendar.
+        foreach (var (row, date) in dayHits)
+            if (row.Contains(e.Location)) { Hide(); app.ShowCalendar(date); return; }
+        if (!placeHit.Contains(e.Location)) return;
+        // The place name opens the city list.
+        cityMenu.Items.Clear();
+        cityMenu.RightToLeft = RightToLeft;
+        for (int i = -1; i < app.S.Cities.Count; i++)
+        {
+            int index = i;
+            var item = new ToolStripMenuItem(i < 0 ? $"{app.PlaceName(-1)} ({L.T("MyLocation")})" : app.PlaceName(i))
+                { Checked = CityCycle.Clamp(app.S.ActiveCity, app.S.Cities.Count) == i };
+            item.Click += (_, _) => app.SwitchTo(index);
+            cityMenu.Items.Add(item);
+        }
+        cityMenu.Items.Add(new ToolStripSeparator());
+        cityMenu.Items.Add(L.T("ManageCities"), null, (_, _) => { Hide(); app.ShowSettings(SettingsForm.LocationPage); });
+        activated = false; // the menu takes focus for a moment; don't close the flyout for that
+        cityMenu.Show(this, new Point(Rtl ? placeHit.Right : placeHit.Left, placeHit.Bottom), Rtl ? ToolStripDropDownDirection.BelowLeft : ToolStripDropDownDirection.BelowRight);
+        cityMenu.Closed += CityMenuClosed;
+    }
+
+    void CityMenuClosed(object? sender, ToolStripDropDownClosedEventArgs e)
+    {
+        cityMenu.Closed -= CityMenuClosed;
+        activated = true;
+        if (Visible) Activate();
     }
 
     protected override void OnActivated(EventArgs e)
@@ -197,6 +266,7 @@ sealed class WeatherFlyout : Form
         DrawHourly(g, t, f, localNow, new Rectangle(Px(Pad), y, Width - Px(Pad) * 2, Px(HourlyH)));
         y += Px(HourlyH) + Px(Gap);
         y = DrawDays(g, t, f, localNow, y);
+        if (ShowWorld) y = DrawWorld(g, t, app.World!, y + Px(Gap));
 
         using var fNote = new Font("Segoe UI", 8f);
         TextRenderer.DrawText(g, L.T("DataBy"), fNote, new Rectangle(Px(Pad), y + Px(8), Width - Px(Pad) * 2, Px(18)), t.Dim,
@@ -220,12 +290,32 @@ sealed class WeatherFlyout : Form
         using var fCond = new Font("Segoe UI Semibold", 11f);
         var soft = Color.FromArgb(220, 232, 244);
 
-        // Place name, and the status on the far side.
-        string place = app.S.HasLocation ? app.S.LocationName : L.T("NoLocation");
+        // Place name (a switcher when there are saved cities), and the status on the far side.
+        string place = app.ActivePlace?.Name ?? L.T("NoLocation");
         string status = StatusText(f);
-        int statusW = Px(150);
-        TextRenderer.DrawText(g, place, fName, M(new Rectangle(pad, Px(10), Width - pad * 2 - statusW, Px(24))), Color.White,
-            Near | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        int statusW = Px(130);
+        bool multi = app.S.Cities.Count > 0;
+        int nameMax = Width - pad * 2 - statusW - (multi ? Px(20) : 0);
+        int nameW = Math.Min(nameMax, TextRenderer.MeasureText(g, place, fName, Size.Empty, TextFormatFlags.NoPadding).Width + Px(2));
+        TextRenderer.DrawText(g, place, fName, M(new Rectangle(pad, Px(10), nameW, Px(24))), Color.White,
+            Near | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+        placeHit = Rectangle.Empty;
+        if (multi)
+        {
+            using var fChevron = new Font(Art.IconFontName, 8f);
+            var chev = M(new Rectangle(pad + nameW + Px(4), Px(10), Px(16), Px(24)));
+            TextRenderer.DrawText(g, Art.IconChevronDown, fChevron, chev, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            placeHit = M(new Rectangle(pad - Px(4), Px(8), nameW + Px(26), Px(28)));
+            // One dot per place, the shown one bright, centred at the foot of the header.
+            int count = app.S.Cities.Count + 1, active = CityCycle.Clamp(app.S.ActiveCity, app.S.Cities.Count) + 1, dot = Px(6), step = Px(12);
+            int x0 = (Width - (count - 1) * step) / 2;
+            for (int i = 0; i < count; i++)
+            {
+                int pos = Rtl ? count - 1 - i : i;
+                using var b = new SolidBrush(i == active ? Color.White : Color.FromArgb(90, 255, 255, 255));
+                g.FillEllipse(b, x0 + pos * step - dot / 2f, Px(HeaderH) - Px(8) - dot / 2f, dot, dot);
+            }
+        }
         TextRenderer.DrawText(g, status, fSmall, M(new Rectangle(Width - pad - statusW, Px(10), statusW, Px(24))), soft,
             Far | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
 
@@ -250,6 +340,19 @@ sealed class WeatherFlyout : Form
 
         // Date at the place, plus its clock when it is in another time zone than this PC.
         string date = L.LongDay(localNow);
+        if (app.S.ShowSeason)
+        {
+            // The season at the place shown (it flips south of the equator), on the far side of the date line.
+            var day = DateOnly.FromDateTime(localNow);
+            string name = L.T(SeasonCalendar.Of(day, app.ActivePlace?.Latitude ?? 0).ToString());
+            int left = SeasonCalendar.DaysLeft(day);
+            string season = left <= 1 ? L.F("SeasonLastDay", name) : L.F("SeasonLeft", name, left);
+            int seasonW = Px(150);
+            TextRenderer.DrawText(g, season, fSmall, M(new Rectangle(Width - pad - seasonW, Px(110), seasonW, Px(18))), Color.White, Far | TextFormatFlags.EndEllipsis);
+            TextRenderer.DrawText(g, date + (!app.Headless && Math.Abs((localNow - DateTime.Now).TotalMinutes) > 1 ? "   " + L.F("LocalTime", L.Clock(localNow)) : ""), fSmall,
+                M(new Rectangle(pad, Px(110), Width - pad * 2 - seasonW - Px(8), Px(18))), soft, Near | TextFormatFlags.EndEllipsis);
+            return;
+        }
         if (!app.Headless && Math.Abs((localNow - DateTime.Now).TotalMinutes) > 1) date += "   " + L.F("LocalTime", L.Clock(localNow));
         TextRenderer.DrawText(g, date, fSmall, M(new Rectangle(pad, Px(110), Width - pad * 2, Px(18))), soft, Near | TextFormatFlags.EndEllipsis);
     }
@@ -381,6 +484,38 @@ sealed class WeatherFlyout : Form
         }
     }
 
+    int DrawWorld(Graphics g, Theme t, Extremes w, int y)
+    {
+        using var fTitle = new Font("Segoe UI Semibold", 9.5f);
+        using var fName = new Font("Segoe UI", 9f);
+        using var fLabel = new Font("Segoe UI Semibold", 8.5f);
+        using var fNum = new Font("Segoe UI Semibold", 10f);
+        using var fSmall = new Font("Segoe UI", 8f);
+        int pad = Px(Pad);
+        TextRenderer.DrawText(g, L.T("OnEarthNow"), fTitle, M(new Rectangle(pad + Px(4), y, Px(200), Px(22))), t.Text, Near);
+        TextRenderer.DrawText(g, L.F("OfWatched", w.Watched), fSmall, M(new Rectangle(Width - pad - Px(150), y, Px(146), Px(22))), t.Dim, Far | TextFormatFlags.VerticalCenter);
+        y += Px(26);
+        void Row(SpotReading r, string label, Color c)
+        {
+            var row = new Rectangle(pad, y, Width - pad * 2, Px(WorldRowH) - Px(4));
+            Art.FillRound(g, row, Px(6), t.Surface);
+            int x = pad + Px(10), labelW = Px(66), numW = Px(46), iconW = Px(26);
+            using (var b = new SolidBrush(c)) g.FillEllipse(b, M(new RectangleF(x, y + row.Height / 2f - Px(4), Px(8), Px(8))));
+            TextRenderer.DrawText(g, label, fLabel, M(new Rectangle(x + Px(14), y, labelW, row.Height)), c, Near | TextFormatFlags.VerticalCenter);
+            x += Px(14) + labelW;
+            Art.Weather(g, M(new RectangleF(x, y + (row.Height - Px(20)) / 2f, Px(20), Px(20))), WeatherCode.Icon(r.Code), r.IsDay);
+            x += iconW;
+            int nameW = Width - pad - Px(10) - numW - x;
+            TextRenderer.DrawText(g, WorldWatch.Spot(r.Index).Name, fName, M(new Rectangle(x, y, nameW, row.Height)), t.Text, Near | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            TextRenderer.DrawText(g, Num(r.TemperatureC), fNum, M(new Rectangle(Width - pad - Px(10) - numW, y, numW, row.Height)), c,
+                (Rtl ? TextFormatFlags.Left : TextFormatFlags.Right) | TextFormatFlags.VerticalCenter);
+            y += Px(WorldRowH);
+        }
+        Row(w.Hottest, L.T("Hottest"), t.Warm);
+        Row(w.Coldest, L.T("Coldest"), t.Cool);
+        return y;
+    }
+
     int DrawDays(Graphics g, Theme t, Forecast f, DateTime localNow, int y)
     {
         using var fTitle = new Font("Segoe UI Semibold", 9.5f);
@@ -395,6 +530,7 @@ sealed class WeatherFlyout : Form
         double lo = days.Min(d => d.MinC), hi = days.Max(d => d.MaxC);
         if (hi - lo < 1) hi = lo + 1;
         var today = DateOnly.FromDateTime(localNow);
+        dayHits.Clear();
 
         int dayW = Px(88), iconW = Px(26), rainW = Px(42), numW = Px(38);
         int barL = pad + Px(6) + dayW + iconW + rainW + numW, barR = Width - pad - Px(6) - numW;
@@ -402,6 +538,7 @@ sealed class WeatherFlyout : Form
         {
             var row = new Rectangle(pad, y, Width - pad * 2, Px(DayH) - Px(2));
             if (d.Date == today) Art.FillRound(g, row, Px(6), Color.FromArgb(t.Dark ? 30 : 20, t.Accent));
+            dayHits.Add((row, d.Date));
             int x = pad + Px(6);
             string name = d.Date == today ? L.T("Today") : L.DayName(d.Date);
             TextRenderer.DrawText(g, name, fDay, M(new Rectangle(x, y, dayW, row.Height)), t.Text, Near | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);

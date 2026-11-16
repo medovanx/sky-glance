@@ -12,7 +12,7 @@ sealed class SettingsForm : Form
     // General
     readonly ThemedCombo cmbLang = Combo(), cmbSide = Combo(), cmbRefresh = Combo();
     readonly ThemedNumber numOffset = Num(-2000, 2000);
-    readonly ToggleSwitch tglStartup = new(), tglCondition = new(), tglHighLow = new();
+    readonly ToggleSwitch tglStartup = new(), tglCondition = new(), tglHighLow = new(), tglExtremes = new(), tglSeason = new();
     static readonly int[] RefreshOptions = [10, 15, 30, 60];
     // Location
     readonly ToggleSwitch tglAuto = new();
@@ -20,7 +20,9 @@ sealed class SettingsForm : Form
     readonly Label lblLocStatus = new() { AutoSize = true, Tag = "dim", MaximumSize = new Size(490, 0), Margin = new Padding(0, 4, 0, 4) };
     readonly Button btnDetect = new() { AutoSize = true, Height = 30 };
     readonly ThemedText txtSearch = new() { Width = 392 };
-    readonly Button btnSearch = new() { Size = new Size(90, 30) }, btnUse = new() { AutoSize = true, Height = 30 };
+    readonly Button btnSearch = new() { Size = new Size(90, 30) }, btnUse = new() { AutoSize = true, Height = 30 }, btnAddCity = new() { AutoSize = true, Height = 30 };
+    readonly FlowLayoutPanel citiesPanel = new() { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Margin = Padding.Empty };
+    readonly Label lblNoCities = new() { AutoSize = true, Tag = "dim", MaximumSize = new Size(490, 0), Margin = new Padding(0, 0, 0, 6) };
     // Same left edge as the rows above and below it (a control's default margin is 3 px), and the same width as the search row.
     readonly ThemedCombo cmbResults = new() { Width = 490, Margin = new Padding(0, 4, 0, 4) };
     readonly List<LocResult> results = [];
@@ -125,6 +127,8 @@ sealed class SettingsForm : Form
         cmbRefresh.SelectedIndex = ri >= 0 ? ri : 1;
         tglCondition.Checked = s.ShowCondition;
         tglHighLow.Checked = s.ShowHighLow;
+        tglExtremes.Checked = s.ShowExtremes;
+        tglSeason.Checked = s.ShowSeason;
         tglStartup.Checked = !app.Headless && AppSettings.StartWithWindows;
         AddPage(Art.IconGeneral, L.T("General"),
             Card(L.T("General"), Art.IconGeneral,
@@ -135,7 +139,10 @@ sealed class SettingsForm : Form
                 Row(L.T("ShowCondition"), tglCondition),
                 Row(L.T("ShowHighLow"), tglHighLow),
                 Row(L.T("WidgetPosition"), cmbSide),
-                Row(L.T("WidgetOffset"), numOffset)));
+                Row(L.T("WidgetOffset"), numOffset)),
+            Card(L.T("Flyout"), Art.IconWeather,
+                Row(L.T("ShowSeason"), tglSeason),
+                Row(L.T("ShowExtremes"), tglExtremes)));
     }
 
     void BuildLocation()
@@ -147,12 +154,15 @@ sealed class SettingsForm : Form
         btnDetect.Text = L.T("DetectNow");
         btnSearch.Text = L.T("Search");
         btnUse.Text = L.T("UseCity");
+        btnAddCity.Text = L.T("AddCity");
+        lblNoCities.Text = L.T("NoCities");
         txtSearch.PlaceholderText = L.T("SearchHint");
         txtSearch.RightToLeft = RightToLeft;
         tglAuto.CheckedChanged += (_, _) => SyncEnabled();
         txtSearch.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _ = SearchAsync(); } };
         btnSearch.Click += async (_, _) => await SearchAsync();
         btnUse.Click += (_, _) => UseResult();
+        btnAddCity.Click += (_, _) => AddResult();
         btnDetect.Click += async (_, _) =>
         {
             btnDetect.Enabled = false;
@@ -175,9 +185,12 @@ sealed class SettingsForm : Form
             foreach (var r in results) cmbResults.Items.Add(r.Name);
             cmbResults.SelectedIndex = 0;
         }
+        FillCities();
+        var citiesNote = new Label { Text = L.T("CitiesNote"), AutoSize = true, MaximumSize = new Size(490, 0), Tag = "dim", Margin = new Padding(0, 6, 0, 4) };
         AddPage(Art.IconLocation, L.T("Location"),
             Card(L.T("CurrentLocation"), Art.IconLocation, lblPlace, Row(L.T("AutoLocation"), tglAuto), autoNote, Flow(btnDetect)),
-            Card(L.T("SearchCity"), Art.IconSearch, Flow(txtSearch, btnSearch), cmbResults, Flow(btnUse), lblLocStatus, privacy));
+            Card(L.T("SearchCity"), Art.IconSearch, Flow(txtSearch, btnSearch), cmbResults, Flow(btnUse, btnAddCity), lblLocStatus, privacy),
+            Card(L.T("MyCities"), Art.IconWeather, lblNoCities, citiesPanel, citiesNote));
     }
 
     async Task SearchAsync()
@@ -206,6 +219,40 @@ sealed class SettingsForm : Form
         lblPlace.Text = r.Name;
         lblLocStatus.Text = L.F("CityChosen", r.Name);
         SyncEnabled();
+    }
+
+    void AddResult()
+    {
+        if (cmbResults.SelectedIndex < 0 || cmbResults.SelectedIndex >= results.Count) return;
+        var r = results[cmbResults.SelectedIndex];
+        var place = new Place(r.Name, r.Lat, r.Lon);
+        if (s.Cities.Any(c => c.Key == place.Key)) { lblLocStatus.Text = L.F("CityAlready", r.Name); return; }
+        s.Cities.Add(place);
+        lblLocStatus.Text = L.F("CityAdded", r.Name);
+        FillCities();
+    }
+
+    /// <summary>One row per saved city: its name and a remove button.</summary>
+    void FillCities()
+    {
+        citiesPanel.SuspendLayout();
+        foreach (Control c in citiesPanel.Controls.Cast<Control>().ToList()) { citiesPanel.Controls.Remove(c); c.Dispose(); }
+        for (int i = 0; i < s.Cities.Count; i++)
+        {
+            int index = i;
+            var remove = new Button { Text = L.T("Remove"), AutoSize = true, Height = 28 };
+            remove.Click += (_, _) =>
+            {
+                s.ActiveCity = CityCycle.AfterRemove(s.ActiveCity, index);
+                s.Cities.RemoveAt(index);
+                BeginInvoke(FillCities); // not while this button's own click is running
+            };
+            var row = Row(s.Cities[i].Name, remove);
+            citiesPanel.Controls.Add(row);
+        }
+        lblNoCities.Visible = s.Cities.Count == 0;
+        Styler.Apply(citiesPanel, t);
+        citiesPanel.ResumeLayout();
     }
 
     void BuildUnits()
@@ -247,7 +294,7 @@ sealed class SettingsForm : Form
     {
         tglAutoInstall.Enabled = tglAutoCheck.Checked;
         btnDetect.Enabled = tglAuto.Checked;
-        btnUse.Enabled = results.Count > 0;
+        btnUse.Enabled = btnAddCity.Enabled = results.Count > 0;
         cmbResults.Enabled = results.Count > 0;
     }
 
@@ -259,7 +306,11 @@ sealed class SettingsForm : Form
         s.RefreshMinutes = RefreshOptions[Math.Max(0, cmbRefresh.SelectedIndex)];
         s.ShowCondition = tglCondition.Checked;
         s.ShowHighLow = tglHighLow.Checked;
+        s.ShowExtremes = tglExtremes.Checked;
+        s.ShowSeason = tglSeason.Checked;
         s.AutoLocation = tglAuto.Checked;
+        // The city may have been switched from the flyout while this window was open: keep that unless the list changed.
+        if (s.Cities.Select(c => c.Key).SequenceEqual(app.S.Cities.Select(c => c.Key))) s.ActiveCity = app.S.ActiveCity;
         s.Temperature = (TemperatureUnit)Math.Max(0, cmbTemp.SelectedIndex);
         s.Wind = (WindUnit)Math.Max(0, cmbWind.SelectedIndex);
         s.Precipitation = (PrecipitationUnit)Math.Max(0, cmbPrecip.SelectedIndex);

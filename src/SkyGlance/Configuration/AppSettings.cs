@@ -16,6 +16,11 @@ public sealed class AppSettings
     public string LocationName { get; set; } = "";
     public DateTime LocationUpdatedUtc { get; set; }
 
+    /// <summary>Extra cities to switch between, after "my location".</summary>
+    public List<Place> Cities { get; set; } = [];
+    /// <summary>The city shown: -1 for my location, otherwise an index into <see cref="Cities"/>.</summary>
+    public int ActiveCity { get; set; } = -1;
+
     public TemperatureUnit Temperature { get; set; } = DefaultFahrenheit() ? TemperatureUnit.Fahrenheit : TemperatureUnit.Celsius;
     public WindUnit Wind { get; set; } = DefaultFahrenheit() ? WindUnit.MilesPerHour : WindUnit.KilometresPerHour;
     public PrecipitationUnit Precipitation { get; set; } = DefaultFahrenheit() ? PrecipitationUnit.Inches : PrecipitationUnit.Millimetres;
@@ -24,6 +29,10 @@ public sealed class AppSettings
     public bool ShowCondition { get; set; } = true;
     /// <summary>Show today's high and low beside the temperature in the taskbar.</summary>
     public bool ShowHighLow { get; set; } = true;
+    /// <summary>Show the hottest and coldest places on Earth right now in the flyout.</summary>
+    public bool ShowExtremes { get; set; } = true;
+    /// <summary>Show the season at the place shown in the flyout.</summary>
+    public bool ShowSeason { get; set; } = true;
     /// <summary>Minutes between forecast refreshes.</summary>
     public int RefreshMinutes { get; set; } = 15;
 

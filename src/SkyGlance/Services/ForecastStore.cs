@@ -2,28 +2,32 @@ using System.Text.Json;
 
 namespace SkyGlance.Services;
 
-/// <summary>Keeps the last forecast on disk so the widget has something to show at start-up and while offline.</summary>
+/// <summary>
+/// Keeps the last forecast of each place on disk (keyed by <see cref="Place.Key"/>), so the widget has something
+/// to show at start-up, while offline and right after switching city.
+/// </summary>
 static class ForecastStore
 {
-    public static Forecast? Load()
+    public static Dictionary<string, Forecast> Load()
     {
         try
         {
-            if (File.Exists(AppPaths.Forecast))
-                return JsonSerializer.Deserialize<Forecast>(File.ReadAllText(AppPaths.Forecast));
+            if (File.Exists(AppPaths.Forecasts))
+                return JsonSerializer.Deserialize<Dictionary<string, Forecast>>(File.ReadAllText(AppPaths.Forecasts)) ?? [];
         }
         catch (Exception ex) { Log.Error(ex); }
-        return null;
+        return [];
     }
 
-    public static void Save(Forecast f)
+    public static void Save(Dictionary<string, Forecast> all)
     {
         try
         {
             Directory.CreateDirectory(AppPaths.Data);
-            var tmp = AppPaths.Forecast + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(f));
-            File.Move(tmp, AppPaths.Forecast, true);
+            var tmp = AppPaths.Forecasts + ".tmp";
+            File.WriteAllText(tmp, JsonSerializer.Serialize(all));
+            File.Move(tmp, AppPaths.Forecasts, true);
+            if (File.Exists(AppPaths.OldForecast)) File.Delete(AppPaths.OldForecast);
         }
         catch (Exception ex) { Log.Error(ex); }
     }

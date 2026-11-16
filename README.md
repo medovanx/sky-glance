@@ -30,6 +30,10 @@ with Celsius or Fahrenheit and five wind units. English and Arabic. No account, 
 - **Lives in the taskbar.** A weather picture, the temperature, today's high and low and the condition, embedded next to the notification area or at the left end. It takes the nearest free spot on either side, so it never covers other taskbar tools such as Data Tide, Salaty Reminder or TrafficMonitor, hides with the taskbar in fullscreen apps and comes back after Explorer restarts.
 - **Forecast flyout.** Click the widget for the sky right now (with "feels like", today's high and low), humidity, wind and direction, UV index, rain chance, sunrise and sunset, a 24-hour temperature chart with rain chances, and a 7-day forecast with each day's range.
 - **Your location, automatically.** Uses Windows location when it's on, otherwise a rough location from your IP address, and checks again every few hours so a laptop follows you. Or search for any city in the world and keep it.
+- **Several cities.** Save as many cities as you like and switch between them by clicking the place name in the flyout, with the arrow keys, from the right-click menu, or by scrolling over the widget. Each city keeps its own cached forecast.
+- **Weather on any date.** A calendar window shows any day from 1 January 1940 up to 15 days ahead for any of your cities: high and low, precipitation, wind, sunrise and sunset, and the day in three-hour steps. Click a day in the 7-day forecast to open it there.
+- **Season.** The flyout shows the season at the place shown (it flips south of the equator) and how many days are left in it.
+- **Hottest and coldest right now.** The flyout shows the hottest and coldest of 32 places around the world that usually hold the records, from Death Valley and Kuwait to Vostok Station and Oymyakon.
 - **The time where the weather is.** A city in another time zone shows its own clock and its own "now".
 - **Units.** Celsius or Fahrenheit; km/h, m/s, mph, knots or Beaufort; millimetres or inches. Switch the temperature unit straight from the right-click menu.
 - **Works offline.** The last forecast is kept on disk and shown until the next one arrives; refreshes retry with a growing delay.
@@ -55,8 +59,8 @@ Weather alerts are not included: Open-Meteo, the free keyless service Sky Glance
     <td align="center"><img src="docs/screenshots/settings-2-en.png" width="440"><br><sub>Units</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/screenshots/settings-0-en.png" width="440"><br><sub>General and taskbar placement</sub></td>
-    <td align="center"><img src="docs/screenshots/settings-1-ar.png" width="440"><br><sub>Settings in Arabic</sub></td>
+    <td align="center"><img src="docs/screenshots/calendar-en.png" width="440"><br><sub>Weather on any date since 1940</sub></td>
+    <td align="center"><img src="docs/screenshots/calendar-ar.png" width="440"><br><sub>Calendar in Arabic</sub></td>
   </tr>
 </table>
 
@@ -76,13 +80,15 @@ Sky Glance has no account, analytics or tracking. It only goes online for these 
 
 | Service | When | What it sends |
 | --- | --- | --- |
-| [Open-Meteo Forecast](https://open-meteo.com/en/docs) | Every refresh (every 15 minutes by default) | The coordinates of your location or chosen city |
+| [Open-Meteo Forecast](https://open-meteo.com/en/docs) | Every refresh (every 15 minutes by default), and for recent or coming dates in the calendar | The coordinates of the city shown or picked |
+| [Open-Meteo Forecast](https://open-meteo.com/en/docs) | Every hour, for "hottest and coldest right now" (can be turned off) | The fixed coordinates of 32 watched places, nothing about you |
+| [Open-Meteo Historical Weather](https://open-meteo.com/en/docs/historical-weather-api) | When you open a date more than 90 days ago | The coordinates of the city you picked and the date |
 | [Open-Meteo Geocoding](https://open-meteo.com/en/docs/geocoding-api) | When you search for a city | The search text |
 | [BigDataCloud](https://www.bigdatacloud.com/) | Auto location, to name the place Windows found | Your coordinates |
 | [ipwho.is](https://ipwho.is/) | Auto location, only if Windows location is off or fails | Your IP address (implicitly) |
 | [GitHub API](https://docs.github.com/rest/releases) | Update checks | Nothing besides the request |
 
-Your settings and the last forecast stay in `%APPDATA%\SkyGlance`. Choose a city instead of automatic location to stop the BigDataCloud and ipwho.is requests.
+Your settings, your cities and their last forecasts stay in `%APPDATA%\SkyGlance`. Choose a city instead of automatic location to stop the BigDataCloud and ipwho.is requests.
 
 ## How it works
 
@@ -96,8 +102,11 @@ Your settings and the last forecast stay in `%APPDATA%\SkyGlance`. Choose a city
 sky-glance/
 ├── src/
 │   ├── SkyGlance.Core/           Logic with no Windows or UI dependencies
+│   │   ├── Places/               Saved cities and switching between them
+│   │   ├── Seasons/              Meteorological seasons by hemisphere
 │   │   ├── Units/                Temperature, wind and precipitation units
-│   │   └── Weather/              Open-Meteo request and parser, weather codes, forecast model
+│   │   ├── Weather/              Open-Meteo requests and parsers, weather codes, forecast and day models
+│   │   └── World/                Hottest and coldest of the watched places
 │   └── SkyGlance/                The Windows app
 │       ├── Assets/               Icon
 │       ├── Configuration/        Settings and start-with-Windows
@@ -106,7 +115,8 @@ sky-glance/
 │       ├── Localization/         English and Arabic text and dates
 │       ├── Services/             Weather, location, forecast cache, updater, log
 │       └── UI/
-│           ├── Controls/         Themed toggle, dropdown, number box, buttons
+│           ├── Calendar/         The "weather on a date" window
+│           ├── Controls/         Themed toggle, dropdown, number box, buttons, day picker
 │           ├── Flyout/           The forecast popup
 │           ├── Settings/         The settings window
 │           ├── Styling/          Theme colours and the weather drawings
@@ -176,6 +186,8 @@ The [release workflow](.github/workflows/release.yml) runs the tests, builds the
 - تحديد موقعك تلقائيًا عبر خدمة الموقع في ويندوز أو عنوان IP، أو اختيار أي مدينة في العالم
 - الرطوبة والرياح واتجاهها ومؤشر الأشعة وفرصة المطر ووقت الشروق والغروب
 - درجة مئوية أو فهرنهايت، وخمس وحدات لسرعة الرياح
+- عدة مدن مع التبديل بينها، والطقس في أي يوم منذ 1940
+- الفصل الحالي، وأشد الأماكن حرًا وبردًا على الأرض الآن
 - لا تغطي الأدوات الأخرى في شريط المهام مثل داتا تايد وصلاتي
 - واجهة عربية كاملة من اليمين إلى اليسار، ووضع داكن وفاتح يتبع ويندوز
 - بلا حساب ولا مفتاح API، وتحديث تلقائي آمن من GitHub

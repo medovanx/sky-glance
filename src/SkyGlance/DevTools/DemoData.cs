@@ -18,7 +18,37 @@ static class DemoData
         Temperature = TemperatureUnit.Celsius,
         Wind = WindUnit.KilometresPerHour,
         Precipitation = PrecipitationUnit.Millimetres,
+        Cities =
+        [
+            new Place(lang == "ar" ? "طوكيو، اليابان" : "Tokyo, Japan", 35.69, 139.69),
+            new Place(lang == "ar" ? "ريكيافيك، آيسلندا" : "Reykjavik, Iceland", 64.15, -21.94),
+        ],
     };
+
+    /// <summary>A made-up summer day from the archive, for the calendar screenshot.</summary>
+    public static DayReport Day()
+    {
+        var date = new DateOnly(2003, 8, 1);
+        var hours = Enumerable.Range(0, 24).Select(h => new HourlyPoint(date.ToDateTime(new TimeOnly(h, 0)),
+            Math.Round(27 + 8 * Math.Cos((h - 15) / 24.0 * Math.PI * 2), 1), h is >= 11 and <= 17 ? 1 : 0, 0, h is >= 7 and < 21)).ToList();
+        return new DayReport(date, DaySource.Archive, 1, 35.2, 19.4, 0, null, 17.8, null,
+            date.ToDateTime(new TimeOnly(6, 41)), date.ToDateTime(new TimeOnly(20, 51)), hours);
+    }
+
+    /// <summary>Made-up extremes: Death Valley (index 0) and Vostok Station (index 20) of the real watch-list.</summary>
+    public static Extremes World() => new(new SpotReading(0, 31.8, 0, true), new SpotReading(20, -41.6, 0, true), WorldWatch.Spots.Length, DateTime.UtcNow.AddMinutes(-20));
+
+    /// <summary>The demo forecast for every demo place, keyed like the real cache.</summary>
+    public static Dictionary<string, Forecast> Forecasts()
+    {
+        var home = Forecast();
+        return new()
+        {
+            [Place.KeyOf(Lat, Lon)] = home,
+            [Place.KeyOf(35.69, 139.69)] = home with { Current = home.Current with { TemperatureC = 12.4, Code = 0, IsDay = false } },
+            [Place.KeyOf(64.15, -21.94)] = home with { Current = home.Current with { TemperatureC = -2.3, Code = 73 } },
+        };
+    }
 
     /// <summary>
     /// A mild afternoon with showers coming in tomorrow evening. The offset is chosen so that the clock at the

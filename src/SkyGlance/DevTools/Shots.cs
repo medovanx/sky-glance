@@ -14,10 +14,11 @@ static class Shots
     {
         Directory.CreateDirectory(dir);
         ApplicationConfiguration.Initialize();
-        var forecast = DemoData.Forecast();
+        var all = DemoData.Forecasts();
+        var forecast = all[Place.KeyOf(DemoData.Lat, DemoData.Lon)];
         foreach (var lang in new[] { "en", "ar" })
         {
-            var app = new SkyGlanceApp(DemoData.Settings(lang), forecast);
+            var app = new SkyGlanceApp(DemoData.Settings(lang), all, DemoData.World());
             var c = forecast.Current;
 
             WidgetStrip(Path.Combine(dir, $"widget-{lang}.png"), UnitFormat.Temperature(c.TemperatureC, TemperatureUnit.Celsius),
@@ -39,6 +40,12 @@ static class Shots
                 SaveClient(settings, Path.Combine(dir, $"settings-{i}-{lang}.png"));
             }
             settings.Close();
+
+            var day = new DayForm(app) { StartPosition = FormStartPosition.Manual, Location = new Point(-4000, -4000) };
+            day.Show();
+            day.ShowDemo(DemoData.Day(), DemoData.City(lang));
+            SaveClient(day, Path.Combine(dir, $"calendar-{lang}.png"));
+            day.Close();
         }
         Icons(Path.Combine(dir, "icons.png"));
         return 0;

@@ -1,3 +1,6 @@
+global using SkyGlance.Core.Places;
+global using SkyGlance.Core.Seasons;
+global using SkyGlance.Core.World;
 global using SkyGlance.Configuration;
 global using SkyGlance.Core.Units;
 global using SkyGlance.Core.Weather;
@@ -5,6 +8,7 @@ global using SkyGlance.DevTools;
 global using SkyGlance.Interop;
 global using SkyGlance.Localization;
 global using SkyGlance.Services;
+global using SkyGlance.UI.Calendar;
 global using SkyGlance.UI.Controls;
 global using SkyGlance.UI.Flyout;
 global using SkyGlance.UI.Settings;
