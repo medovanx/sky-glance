@@ -9,7 +9,7 @@ namespace SkyGlance.UI.Flyout;
 /// </summary>
 sealed class WeatherFlyout : Form
 {
-    const int W = 380, HeaderH = 142, TileH = 46, HourlyH = 128, DayH = 26, Pad = 16, Gap = 12, ButtonH = 34;
+    const int W = 380, HeaderH = 166, TileH = 46, HourlyH = 128, DayH = 26, Pad = 16, Gap = 12, ButtonH = 34;
 
     readonly SkyGlanceApp app;
     readonly IconButton btnRefresh = new(), btnCalendar = new(), btnLocation = new(), btnSettings = new();
@@ -285,27 +285,34 @@ sealed class WeatherFlyout : Form
 
         int pad = Px(Pad);
         using var fName = new Font("Segoe UI Semibold", 10.5f);
+        using var fBrand = new Font("Segoe UI Semibold", 9f);
         using var fSmall = new Font("Segoe UI", 8.5f);
         using var fBig = new Font("Segoe UI Semibold", 30f);
         using var fCond = new Font("Segoe UI Semibold", 11f);
         var soft = Color.FromArgb(220, 232, 244);
 
-        // Place name (a switcher when there are saved cities), and the status on the far side.
+        // Top row, like Salaty Reminder's card: the mark and the app name, and the status on the far side.
+        int markS = Px(18);
+        Art.Mark(g, M(new RectangleF(pad, Px(12), markS, markS)));
+        TextRenderer.DrawText(g, L.T("AppName"), fBrand, M(new Rectangle(pad + markS + Px(6), Px(10), Px(140), Px(22))), Color.White,
+            Near | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+
+        // Second row: the place name (a switcher when there are saved cities).
         string place = app.ActivePlace?.Name ?? L.T("NoLocation");
         string status = StatusText(f);
         int statusW = Px(130);
         bool multi = app.S.Cities.Count > 0;
-        int nameMax = Width - pad * 2 - statusW - (multi ? Px(20) : 0);
+        int nameMax = Width - pad * 2 - (multi ? Px(20) : 0);
         int nameW = Math.Min(nameMax, TextRenderer.MeasureText(g, place, fName, Size.Empty, TextFormatFlags.NoPadding).Width + Px(2));
-        TextRenderer.DrawText(g, place, fName, M(new Rectangle(pad, Px(10), nameW, Px(24))), Color.White,
+        TextRenderer.DrawText(g, place, fName, M(new Rectangle(pad, Px(34), nameW, Px(24))), Color.White,
             Near | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
         placeHit = Rectangle.Empty;
         if (multi)
         {
             using var fChevron = new Font(Art.IconFontName, 8f);
-            var chev = M(new Rectangle(pad + nameW + Px(4), Px(10), Px(16), Px(24)));
+            var chev = M(new Rectangle(pad + nameW + Px(4), Px(34), Px(16), Px(24)));
             TextRenderer.DrawText(g, Art.IconChevronDown, fChevron, chev, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-            placeHit = M(new Rectangle(pad - Px(4), Px(8), nameW + Px(26), Px(28)));
+            placeHit = M(new Rectangle(pad - Px(4), Px(32), nameW + Px(26), Px(28)));
             // One dot per place, the shown one bright, centred at the foot of the header.
             int count = app.S.Cities.Count + 1, active = CityCycle.Clamp(app.S.ActiveCity, app.S.Cities.Count) + 1, dot = Px(6), step = Px(12);
             int x0 = (Width - (count - 1) * step) / 2;
@@ -316,27 +323,27 @@ sealed class WeatherFlyout : Form
                 g.FillEllipse(b, x0 + pos * step - dot / 2f, Px(HeaderH) - Px(8) - dot / 2f, dot, dot);
             }
         }
-        TextRenderer.DrawText(g, status, fSmall, M(new Rectangle(Width - pad - statusW, Px(10), statusW, Px(24))), soft,
+        TextRenderer.DrawText(g, status, fSmall, M(new Rectangle(Width - pad - statusW, Px(10), statusW, Px(22))), soft,
             Far | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
 
         if (now is not { } cur || f == null) return;
 
         int iconS = Px(68);
-        Art.Weather(g, M(new RectangleF(pad - Px(4), Px(40), iconS, iconS)), icon, isDay);
+        Art.Weather(g, M(new RectangleF(pad - Px(4), Px(64), iconS, iconS)), icon, isDay);
         string temp = Num(cur.tempC);
-        var tempR = M(new Rectangle(pad + iconS + Px(4), Px(34), Px(130), Px(56)));
+        var tempR = M(new Rectangle(pad + iconS + Px(4), Px(58), Px(130), Px(56)));
         TextRenderer.DrawText(g, temp, fBig, tempR, Color.White, (Rtl ? TextFormatFlags.Right : TextFormatFlags.Left) | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
 
         var today = f.Today(localNow);
         int farW = Px(150);
         var farX = Width - pad - farW;
-        TextRenderer.DrawText(g, L.Condition(cur.code), fCond, M(new Rectangle(farX, Px(44), farW, Px(22))), Color.White,
+        TextRenderer.DrawText(g, L.Condition(cur.code), fCond, M(new Rectangle(farX, Px(68), farW, Px(22))), Color.White,
             Far | TextFormatFlags.EndEllipsis);
         if (today != null)
-            Run(g, [L.T("High"), Num(today.MaxC), "  " + L.T("Low"), Num(today.MinC)], fSmall, soft, new Rectangle(farX, Px(68), farW, Px(18)), far: true);
+            Run(g, [L.T("High"), Num(today.MaxC), "  " + L.T("Low"), Num(today.MinC)], fSmall, soft, new Rectangle(farX, Px(92), farW, Px(18)), far: true);
         bool fresh = (DateTime.UtcNow - f.FetchedUtc).TotalMinutes < 75;
         if (fresh)
-            Run(g, [L.T("FeelsLike"), Num(f.Current.FeelsLikeC)], fSmall, soft, new Rectangle(farX, Px(86), farW, Px(18)), far: true);
+            Run(g, [L.T("FeelsLike"), Num(f.Current.FeelsLikeC)], fSmall, soft, new Rectangle(farX, Px(110), farW, Px(18)), far: true);
 
         // Date at the place, plus its clock when it is in another time zone than this PC.
         string date = L.LongDay(localNow);
@@ -348,13 +355,13 @@ sealed class WeatherFlyout : Form
             int left = SeasonCalendar.DaysLeft(day);
             string season = left <= 1 ? L.F("SeasonLastDay", name) : L.F("SeasonLeft", name, left);
             int seasonW = Px(150);
-            TextRenderer.DrawText(g, season, fSmall, M(new Rectangle(Width - pad - seasonW, Px(110), seasonW, Px(18))), Color.White, Far | TextFormatFlags.EndEllipsis);
+            TextRenderer.DrawText(g, season, fSmall, M(new Rectangle(Width - pad - seasonW, Px(134), seasonW, Px(18))), Color.White, Far | TextFormatFlags.EndEllipsis);
             TextRenderer.DrawText(g, date + (!app.Headless && Math.Abs((localNow - DateTime.Now).TotalMinutes) > 1 ? "   " + L.F("LocalTime", L.Clock(localNow)) : ""), fSmall,
-                M(new Rectangle(pad, Px(110), Width - pad * 2 - seasonW - Px(8), Px(18))), soft, Near | TextFormatFlags.EndEllipsis);
+                M(new Rectangle(pad, Px(134), Width - pad * 2 - seasonW - Px(8), Px(18))), soft, Near | TextFormatFlags.EndEllipsis);
             return;
         }
         if (!app.Headless && Math.Abs((localNow - DateTime.Now).TotalMinutes) > 1) date += "   " + L.F("LocalTime", L.Clock(localNow));
-        TextRenderer.DrawText(g, date, fSmall, M(new Rectangle(pad, Px(110), Width - pad * 2, Px(18))), soft, Near | TextFormatFlags.EndEllipsis);
+        TextRenderer.DrawText(g, date, fSmall, M(new Rectangle(pad, Px(134), Width - pad * 2, Px(18))), soft, Near | TextFormatFlags.EndEllipsis);
     }
 
     /// <summary>A temperature with Latin digits, drawn on its own so no bidi rule can move its sign or degree mark.</summary>
