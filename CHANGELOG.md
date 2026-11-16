@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - The hottest and coldest of 32 watched places around the world right now.
 - The last forecast is cached on disk and shown while offline; failed refreshes retry with a growing delay.
 - English and Arabic with a full right-to-left layout; light and dark theme following Windows.
+- Settings > Updates links to the project page on GitHub.
 - Auto-updates from GitHub Releases with SHA-256 verification.
 
 [1.0.0]: https://github.com/medovanx/sky-glance/releases/tag/v1.0.0
