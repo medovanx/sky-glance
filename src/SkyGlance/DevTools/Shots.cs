@@ -48,6 +48,8 @@ static class Shots
             day.Close();
         }
         Icons(Path.Combine(dir, "icons.png"));
+        Menu(Path.Combine(dir, "menu-dark.png"), true);
+        Menu(Path.Combine(dir, "menu-light.png"), false);
         return 0;
     }
 
@@ -79,6 +81,23 @@ static class Shots
             for (int i = 0; i < all.Length; i++)
                 Art.Weather(g, new RectangleF(12 + i * (n + 12), 12 + row * (n + 12), n, n), all[i], row % 2 == 0);
         bmp.Save(path, ImageFormat.Png);
+    }
+
+    /// <summary>The city list menu with demo cities, drawn off-screen, for a visual check of the menu theme.</summary>
+    static void Menu(string path, bool dark)
+    {
+        L.Ar = false;
+        using var menu = new ContextMenuStrip();
+        menu.Items.Add(new ToolStripMenuItem($"{DemoData.City("en")} ({L.T("MyLocation")})") { Checked = true });
+        menu.Items.Add("Tokyo, Japan");
+        menu.Items.Add("Reykjavik, Iceland");
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(L.T("ManageCities"));
+        MenuRenderer.Apply(menu, new Theme(dark));
+        menu.Show(new Point(-4000, -4000));
+        ((ToolStripMenuItem)menu.Items[1]).Select();
+        SaveControl(menu, path, rounded: false);
+        menu.Close();
     }
 
     /// <summary>A borderless popup drawn off-screen, with its rounded corners cut out.</summary>

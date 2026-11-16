@@ -83,7 +83,6 @@ public static class L
         ["WindMax"] = ("Strongest wind", "أقوى رياح"),
         ["ShowWeather"] = ("Show forecast", "عرض التوقعات"),
         ["RefreshNow"] = ("Refresh now", "تحديث الآن"),
-        ["ChangeLocation"] = ("Change location...", "تغيير الموقع..."),
         ["TempUnitMenu"] = ("Temperature unit", "وحدة الحرارة"),
         ["CheckForUpdates"] = ("Check for updates", "التحقق من التحديثات"),
         ["StartWithWindows"] = ("Start with Windows", "التشغيل مع ويندوز"),

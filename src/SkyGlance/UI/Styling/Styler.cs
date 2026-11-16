@@ -23,6 +23,7 @@ static class Styler
                     b.BackColor = t.Input; b.ForeColor = t.Text;
                     b.FlatAppearance.MouseOverBackColor = t.Dark ? Color.FromArgb(64, 68, 68) : Color.FromArgb(236, 240, 239);
                     b.Cursor = Cursors.Hand;
+                    ThemeDisabled(b, t);
                     break;
                 case Label l when l.Tag as string == "keep":
                     l.BackColor = Color.Transparent; break;
@@ -67,6 +68,22 @@ static class Styler
                         | (cb.RightToLeft == RightToLeft.Yes ? TextFormatFlags.Right | TextFormatFlags.RightToLeft : TextFormatFlags.Left);
             var r = Rectangle.Inflate(e.Bounds, -4, 0);
             TextRenderer.DrawText(e.Graphics, cb.Items[e.Index]?.ToString(), cb.Font, r, sel ? Color.White : t.Text, flags);
+        };
+    }
+
+    /// <summary>
+    /// A disabled flat button draws its text in the system's dark grey, which vanishes on a dark theme.
+    /// Repaint the text in the theme's dim colour instead.
+    /// </summary>
+    static void ThemeDisabled(Button b, Theme t)
+    {
+        b.Paint += (_, e) =>
+        {
+            if (b.Enabled) return;
+            var inner = Rectangle.Inflate(b.ClientRectangle, -1, -1);
+            using (var bg = new SolidBrush(b.BackColor)) e.Graphics.FillRectangle(bg, inner);
+            TextRenderer.DrawText(e.Graphics, b.Text, b.Font, b.ClientRectangle, t.Dim,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | (b.RightToLeft == RightToLeft.Yes ? TextFormatFlags.RightToLeft : 0));
         };
     }
 

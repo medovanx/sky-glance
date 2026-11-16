@@ -380,7 +380,6 @@ sealed class SkyGlanceApp : ApplicationContext
         menu.Items.Add(L.T("ShowWeather"), null, (_, _) => ShowFlyout()).Font = new Font(menu.Font, FontStyle.Bold);
         menu.Items.Add(L.T("RefreshNow"), null, async (_, _) => await RefreshAsync());
         menu.Items.Add(L.T("WeatherOnDate") + "...", null, (_, _) => ShowCalendar());
-        if (S.Cities.Count > 0)
         {
             var cityMenu = new ToolStripMenuItem(L.T("City"));
             for (int i = -1; i < S.Cities.Count; i++)
@@ -394,8 +393,6 @@ sealed class SkyGlanceApp : ApplicationContext
             cityMenu.DropDownItems.Add(L.T("ManageCities"), null, (_, _) => ShowSettings(SettingsForm.LocationPage));
             menu.Items.Add(cityMenu);
         }
-        else
-            menu.Items.Add(L.T("ChangeLocation"), null, (_, _) => ShowSettings(SettingsForm.LocationPage));
 
         var unitMenu = new ToolStripMenuItem(L.T("TempUnitMenu"));
         foreach (var (u, key) in new[] { (TemperatureUnit.Celsius, "Celsius"), (TemperatureUnit.Fahrenheit, "Fahrenheit") })
@@ -418,6 +415,7 @@ sealed class SkyGlanceApp : ApplicationContext
         menu.Items.Add(startup);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(L.T("Exit"), null, (_, _) => Exit());
+        MenuRenderer.Apply(menu, Theme.Current);
     }
 
     public const string ShowFlyoutMessage = "SkyGlance.ShowFlyout";

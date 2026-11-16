@@ -203,6 +203,7 @@ sealed class WeatherFlyout : Form
         }
         cityMenu.Items.Add(new ToolStripSeparator());
         cityMenu.Items.Add(L.T("ManageCities"), null, (_, _) => { Hide(); app.ShowSettings(SettingsForm.LocationPage); });
+        MenuRenderer.Apply(cityMenu, new Theme(dark));
         activated = false; // the menu takes focus for a moment; don't close the flyout for that
         cityMenu.Show(this, new Point(Rtl ? placeHit.Right : placeHit.Left, placeHit.Bottom), Rtl ? ToolStripDropDownDirection.BelowLeft : ToolStripDropDownDirection.BelowRight);
         cityMenu.Closed += CityMenuClosed;
@@ -301,18 +302,18 @@ sealed class WeatherFlyout : Form
         string place = app.ActivePlace?.Name ?? L.T("NoLocation");
         string status = StatusText(f);
         int statusW = Px(130);
+        // The name always opens the city list (with "Manage cities"), even before any city is saved.
         bool multi = app.S.Cities.Count > 0;
-        int nameMax = Width - pad * 2 - (multi ? Px(20) : 0);
+        int nameMax = Width - pad * 2 - Px(20);
         int nameW = Math.Min(nameMax, TextRenderer.MeasureText(g, place, fName, Size.Empty, TextFormatFlags.NoPadding).Width + Px(2));
         TextRenderer.DrawText(g, place, fName, M(new Rectangle(pad, Px(34), nameW, Px(24))), Color.White,
             Near | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
-        placeHit = Rectangle.Empty;
+        using (var fChevron = new Font(Art.IconFontName, 8f))
+            TextRenderer.DrawText(g, Art.IconChevronDown, fChevron, M(new Rectangle(pad + nameW + Px(4), Px(34), Px(16), Px(24))), Color.White,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        placeHit = M(new Rectangle(pad - Px(4), Px(32), nameW + Px(26), Px(28)));
         if (multi)
         {
-            using var fChevron = new Font(Art.IconFontName, 8f);
-            var chev = M(new Rectangle(pad + nameW + Px(4), Px(34), Px(16), Px(24)));
-            TextRenderer.DrawText(g, Art.IconChevronDown, fChevron, chev, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-            placeHit = M(new Rectangle(pad - Px(4), Px(32), nameW + Px(26), Px(28)));
             // One dot per place, the shown one bright, centred at the foot of the header.
             int count = app.S.Cities.Count + 1, active = CityCycle.Clamp(app.S.ActiveCity, app.S.Cities.Count) + 1, dot = Px(6), step = Px(12);
             int x0 = (Width - (count - 1) * step) / 2;
