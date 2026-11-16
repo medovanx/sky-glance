@@ -12,16 +12,17 @@ sealed class SettingsForm : Form
     // General
     readonly ThemedCombo cmbLang = Combo(), cmbSide = Combo(), cmbRefresh = Combo();
     readonly ThemedNumber numOffset = Num(-2000, 2000);
-    readonly ToggleSwitch tglStartup = new(), tglCondition = new();
+    readonly ToggleSwitch tglStartup = new(), tglCondition = new(), tglHighLow = new();
     static readonly int[] RefreshOptions = [10, 15, 30, 60];
     // Location
     readonly ToggleSwitch tglAuto = new();
     readonly Label lblPlace = new() { AutoSize = true, Font = new Font("Segoe UI Semibold", 11f), MaximumSize = new Size(490, 0), Margin = new Padding(0, 0, 0, 6) };
     readonly Label lblLocStatus = new() { AutoSize = true, Tag = "dim", MaximumSize = new Size(490, 0), Margin = new Padding(0, 4, 0, 4) };
     readonly Button btnDetect = new() { AutoSize = true, Height = 30 };
-    readonly ThemedText txtSearch = new() { Width = 330 };
-    readonly Button btnSearch = new() { AutoSize = true, Height = 30 }, btnUse = new() { AutoSize = true, Height = 30 };
-    readonly ThemedCombo cmbResults = Combo(490);
+    readonly ThemedText txtSearch = new() { Width = 392 };
+    readonly Button btnSearch = new() { Size = new Size(90, 30) }, btnUse = new() { AutoSize = true, Height = 30 };
+    // Same left edge as the rows above and below it (a control's default margin is 3 px), and the same width as the search row.
+    readonly ThemedCombo cmbResults = new() { Width = 490, Margin = new Padding(0, 4, 0, 4) };
     readonly List<LocResult> results = [];
     // Units
     readonly ThemedCombo cmbTemp = Combo(260), cmbWind = Combo(260), cmbPrecip = Combo(260);
@@ -123,6 +124,7 @@ sealed class SettingsForm : Form
         int ri = Array.IndexOf(RefreshOptions, s.RefreshMinutes);
         cmbRefresh.SelectedIndex = ri >= 0 ? ri : 1;
         tglCondition.Checked = s.ShowCondition;
+        tglHighLow.Checked = s.ShowHighLow;
         tglStartup.Checked = !app.Headless && AppSettings.StartWithWindows;
         AddPage(Art.IconGeneral, L.T("General"),
             Card(L.T("General"), Art.IconGeneral,
@@ -131,6 +133,7 @@ sealed class SettingsForm : Form
                 Row(L.T("StartWithWindows"), tglStartup)),
             Card(L.T("Taskbar"), Art.IconTaskbar,
                 Row(L.T("ShowCondition"), tglCondition),
+                Row(L.T("ShowHighLow"), tglHighLow),
                 Row(L.T("WidgetPosition"), cmbSide),
                 Row(L.T("WidgetOffset"), numOffset)));
     }
@@ -255,6 +258,7 @@ sealed class SettingsForm : Form
         s.WidgetOffset = (int)numOffset.Value;
         s.RefreshMinutes = RefreshOptions[Math.Max(0, cmbRefresh.SelectedIndex)];
         s.ShowCondition = tglCondition.Checked;
+        s.ShowHighLow = tglHighLow.Checked;
         s.AutoLocation = tglAuto.Checked;
         s.Temperature = (TemperatureUnit)Math.Max(0, cmbTemp.SelectedIndex);
         s.Wind = (WindUnit)Math.Max(0, cmbWind.SelectedIndex);

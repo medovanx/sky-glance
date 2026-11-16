@@ -1,4 +1,4 @@
-using System.Drawing.Drawing2D;
+﻿using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
 using static SkyGlance.Interop.Native;
@@ -23,9 +23,9 @@ sealed class TaskbarWidget : NativeWindow
     public event Action? RightClicked;
 
     IntPtr tray;
-    string temp = "--", condition = "";
+    string temp = "--", condition = "", hiLo = "";
     SkyIcon icon = SkyIcon.Cloudy;
-    bool hover, rtl, day = true, showCondition = true;
+    bool hover, rtl, day = true, showCondition = true, showHiLo = true;
     Size size;
     Point lastPos = new(int.MinValue, 0);
 
@@ -74,11 +74,13 @@ sealed class TaskbarWidget : NativeWindow
         Place();
     }
 
-    public void SetContent(string temperature, string conditionText, SkyIcon sky, bool isDay, bool withCondition, bool isRtl)
+    /// <param name="highLow">Today's high and low (such as "↑22° ↓13°"), or null to leave them out.</param>
+    public void SetContent(string temperature, string conditionText, string? highLow, SkyIcon sky, bool isDay, bool withCondition, bool isRtl)
     {
-        if (temperature == temp && conditionText == condition && sky == icon && isDay == day && withCondition == showCondition && isRtl == rtl) return;
-        bool relayout = isRtl != rtl || withCondition != showCondition;
-        temp = temperature; condition = conditionText; icon = sky; day = isDay; showCondition = withCondition; rtl = isRtl;
+        string hl = highLow ?? "";
+        if (temperature == temp && conditionText == condition && hl == hiLo && (highLow != null) == showHiLo && sky == icon && isDay == day && withCondition == showCondition && isRtl == rtl) return;
+        bool relayout = isRtl != rtl || withCondition != showCondition || (highLow != null) != showHiLo;
+        temp = temperature; condition = conditionText; hiLo = hl; showHiLo = highLow != null; icon = sky; day = isDay; showCondition = withCondition; rtl = isRtl;
         if (!Alive) return;
         var before = size;
         Render();
@@ -243,7 +245,7 @@ sealed class TaskbarWidget : NativeWindow
     void Render()
     {
         if (!GetWindowRect(tray, out var tr)) return;
-        using var bmp = Paint(temp, condition, icon, day, showCondition, hover, rtl, SystemDark(), Scale, tr.Height);
+        using var bmp = Paint(temp, condition, showHiLo ? hiLo : null, icon, day, showCondition, hover, rtl, SystemDark(), Scale, tr.Height);
         size = bmp.Size;
         var screen = GetDC(IntPtr.Zero);
         var mem = CreateCompatibleDC(screen);
@@ -266,22 +268,26 @@ sealed class TaskbarWidget : NativeWindow
     }
 
     /// <summary>
-    /// Draws the widget: the weather picture beside the temperature, with the condition below it.
+    /// Draws the widget: the weather picture beside the temperature and today's high and low, with the condition below.
     /// The width depends only on the scale and the settings, never on the values, so it doesn't jitter as they change.
     /// </summary>
-    public static Bitmap Paint(string temp, string condition, SkyIcon icon, bool isDay, bool withCondition, bool hover, bool rtl, bool dark, float s, int h)
+    public static Bitmap Paint(string temp, string condition, string? highLow, SkyIcon icon, bool isDay, bool withCondition, bool hover, bool rtl, bool dark, float s, int h)
     {
         using var fTemp = new Font("Segoe UI Semibold", (withCondition ? 13f : 15f) * s, GraphicsUnit.Pixel);
         using var fCond = new Font("Segoe UI", 11f * s, GraphicsUnit.Pixel);
-        float tempW;
+        float tempW, hlW = 0, tempNow;
         using (var probe = new Bitmap(1, 1))
         using (var pg = Graphics.FromImage(probe))
         {
             pg.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-            tempW = pg.MeasureString("-88°", fTemp).Width;
+            tempW = pg.MeasureString("-88\u00B0", fTemp).Width;
+            tempNow = pg.MeasureString(temp, fTemp).Width;
+            // Room for the widest likely high and low, so the width doesn't change with the weather.
+            if (highLow != null) hlW = Math.Max(pg.MeasureString("\u219188\u00B0 \u2193-88\u00B0", fCond).Width, pg.MeasureString(highLow, fCond).Width);
         }
-        int pad = (int)(8 * s), iconS = (int)Math.Min(h - 14 * s, 30 * s), gap = (int)(6 * s);
-        int textW = (int)Math.Ceiling(withCondition ? Math.Max(tempW, 92 * s) : tempW);
+        int pad = (int)(8 * s), iconS = (int)Math.Min(h - 14 * s, 30 * s), gap = (int)(6 * s), hlGap = (int)(4 * s);
+        float topW = tempW + (highLow != null ? hlGap + hlW : 0);
+        int textW = (int)Math.Ceiling(withCondition ? Math.Max(topW, 92 * s) : topW);
         int w = pad + iconS + gap + textW + pad;
 
         var bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
@@ -320,16 +326,20 @@ sealed class TaskbarWidget : NativeWindow
             using var b = new SolidBrush(fg);
             using var bd = new SolidBrush(dim);
             float tH = fTemp.GetHeight(g);
-            if (withCondition && condition.Length > 0)
+            float cH = fCond.GetHeight(g);
+            float y1 = withCondition && condition.Length > 0 ? (h - (tH + cH - 3 * s)) / 2 : (h - tH) / 2;
+            g.DrawString(temp, fTemp, b, new RectangleF(textX, y1, textW, tH), tf);
+            if (!string.IsNullOrEmpty(highLow))
             {
-                float cH = fCond.GetHeight(g);
-                float total = tH + cH - 3 * s;
-                float y1 = (h - total) / 2;
-                g.DrawString(temp, fTemp, b, new RectangleF(textX, y1, textW, tH), tf);
-                g.DrawString(condition, fCond, bd, new RectangleF(textX, y1 + tH - 3 * s, textW, cH), sf);
+                // Just after the temperature, on the reading side, sharing its baseline.
+                float hlY = y1 + (fTemp.FontFamily.GetCellAscent(fTemp.Style) * fTemp.Size / fTemp.FontFamily.GetEmHeight(fTemp.Style))
+                               - (fCond.FontFamily.GetCellAscent(fCond.Style) * fCond.Size / fCond.FontFamily.GetEmHeight(fCond.Style));
+                float hlX = rtl ? textX + textW - tempNow - hlGap - hlW : textX + tempNow + hlGap;
+                using var hf = new StringFormat { Alignment = rtl ? StringAlignment.Far : StringAlignment.Near, FormatFlags = StringFormatFlags.NoWrap };
+                g.DrawString(highLow, fCond, bd, new RectangleF(hlX, hlY, hlW + 2 * s, cH), hf);
             }
-            else
-                g.DrawString(temp, fTemp, b, new RectangleF(textX, (h - tH) / 2, textW, tH), tf);
+            if (withCondition && condition.Length > 0)
+                g.DrawString(condition, fCond, bd, new RectangleF(textX, y1 + tH - 3 * s, textW, cH), sf);
         }
         return bmp;
     }

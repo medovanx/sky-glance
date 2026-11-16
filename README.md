@@ -27,7 +27,7 @@ with Celsius or Fahrenheit and five wind units. English and Arabic. No account, 
 
 ## Features
 
-- **Lives in the taskbar.** A weather picture, the temperature and the condition, embedded next to the notification area or at the left end. It takes the nearest free spot on either side, so it never covers other taskbar tools such as Data Tide, Salaty Reminder or TrafficMonitor, hides with the taskbar in fullscreen apps and comes back after Explorer restarts.
+- **Lives in the taskbar.** A weather picture, the temperature, today's high and low and the condition, embedded next to the notification area or at the left end. It takes the nearest free spot on either side, so it never covers other taskbar tools such as Data Tide, Salaty Reminder or TrafficMonitor, hides with the taskbar in fullscreen apps and comes back after Explorer restarts.
 - **Forecast flyout.** Click the widget for the sky right now (with "feels like", today's high and low), humidity, wind and direction, UV index, rain chance, sunrise and sunset, a 24-hour temperature chart with rain chances, and a 7-day forecast with each day's range.
 - **Your location, automatically.** Uses Windows location when it's on, otherwise a rough location from your IP address, and checks again every few hours so a laptop follows you. Or search for any city in the world and keep it.
 - **The time where the weather is.** A city in another time zone shows its own clock and its own "now".

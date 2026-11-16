@@ -79,6 +79,7 @@ public static class L
         ["PrecipIn"] = ("Inches (in)", "بوصة (in)"),
         ["Taskbar"] = ("Taskbar", "شريط المهام"),
         ["ShowCondition"] = ("Show the condition under the temperature", "عرض وصف الطقس أسفل درجة الحرارة"),
+        ["ShowHighLow"] = ("Show today's high and low", "عرض العظمى والصغرى لليوم"),
         ["RefreshEvery"] = ("Refresh every", "التحديث كل"),
         ["Minutes"] = ("{0} minutes", "{0} دقيقة"),
         ["WidgetPosition"] = ("Taskbar position", "الموضع في شريط المهام"),

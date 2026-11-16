@@ -22,6 +22,8 @@ public sealed class AppSettings
 
     /// <summary>Show the condition ("Light rain") under the temperature in the taskbar.</summary>
     public bool ShowCondition { get; set; } = true;
+    /// <summary>Show today's high and low beside the temperature in the taskbar.</summary>
+    public bool ShowHighLow { get; set; } = true;
     /// <summary>Minutes between forecast refreshes.</summary>
     public int RefreshMinutes { get; set; } = 15;
 

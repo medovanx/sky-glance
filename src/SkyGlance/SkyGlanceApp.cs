@@ -1,4 +1,4 @@
-using Microsoft.Win32;
+﻿using Microsoft.Win32;
 
 namespace SkyGlance;
 
@@ -164,13 +164,20 @@ sealed class SkyGlanceApp : ApplicationContext
         return h == null ? null : (h.TemperatureC, h.Code, h.IsDay);
     }
 
+    /// <summary>Today's high and low at the location, such as "↑22° ↓13°", or null before the first forecast.</summary>
+    public string? HighLow()
+    {
+        if (Forecast?.Today(LocalNow) is not { } d) return null;
+        return $"\u2191{UnitFormat.Temperature(d.MaxC, S.Temperature)} \u2193{UnitFormat.Temperature(d.MinC, S.Temperature)}";
+    }
+
     void UpdateWidget()
     {
         if (Headless) return;
         var now = Now();
         string t = now is { } n ? UnitFormat.Temperature(n.tempC, S.Temperature) : "--";
         string cond = now is { } m ? L.Condition(m.code) : !S.HasLocation ? L.T("Location") : "";
-        widget.SetContent(t, cond, now is { } k ? WeatherCode.Icon(k.code) : SkyIcon.Cloudy, now?.day ?? true, S.ShowCondition, L.Ar);
+        widget.SetContent(t, cond, S.ShowHighLow ? HighLow() ?? "" : null, now is { } k ? WeatherCode.Icon(k.code) : SkyIcon.Cloudy, now?.day ?? true, S.ShowCondition, L.Ar);
         string tip = now is { } p
             ? $"{L.T("AppName")}: {S.LocationName}\n{UnitFormat.Temperature(p.tempC, S.Temperature)} {L.Condition(p.code)}"
             : $"{L.T("AppName")}\n{(S.HasLocation ? L.T("Loading") : L.T("NoLocation"))}";
