@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Forecast parsing, weather codes and unit conversion with no Windows or UI dependencies, so it can be unit tested anywhere. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>SkyGlance.Core</RootNamespace>
+  </PropertyGroup>
+
+</Project>

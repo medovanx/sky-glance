@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SkyGlance.Core/SkyGlance.Core.csproj" />
+    <Project Path="src/SkyGlance/SkyGlance.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SkyGlance.Core.Tests/SkyGlance.Core.Tests.csproj" />
+  </Folder>
+</Solution>
