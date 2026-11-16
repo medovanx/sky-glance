@@ -3,6 +3,11 @@
 All notable changes to Sky Glance are listed here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- No more icon in the notification area. The widget's right-click menu has every command, running the exe again opens the flyout, and update messages arrive as Windows notifications.
+
 ## [1.0.1] - 2026-11-16
 
 ### Fixed

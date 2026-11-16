@@ -34,7 +34,6 @@ sealed class SkyGlanceApp : ApplicationContext
 
     readonly HostWindow host;
     readonly TaskbarWidget widget = new();
-    readonly NotifyIcon tray;
     readonly ContextMenuStrip menu = new();
     readonly System.Windows.Forms.Timer timer = new() { Interval = 2000 };
     readonly System.Windows.Forms.Timer updateTimer = new() { Interval = 45_000 };
@@ -43,7 +42,7 @@ sealed class SkyGlanceApp : ApplicationContext
     DateTime nextFetchUtc = DateTime.MinValue;
     int failures;
 
-    /// <summary>Headless instance for --shots: no tray, widget, timers, network or saving.</summary>
+    /// <summary>Headless instance for --shots: no widget, timers, network or saving.</summary>
     public bool Headless { get; }
 
     /// <summary>Raised when the forecast or the settings change.</summary>
@@ -60,16 +59,11 @@ sealed class SkyGlanceApp : ApplicationContext
 
         host = new HostWindow(this);
         menu.Opening += (_, e) => { BuildMenu(); e.Cancel = false; };
-        tray = new NotifyIcon
-        {
-            Icon = new Icon(AppIcon, SystemInformation.SmallIconSize),
-            Text = L.T("AppName"),
-            ContextMenuStrip = menu,
-            Visible = !Headless,
-        };
         if (Headless) return;
 
-        tray.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ToggleFlyout(); };
+        // No icon in the notification area: the widget's own right-click menu has every command, launching the
+        // exe again opens the flyout, and messages arrive as Windows toasts.
+        Toast.Init(AppIcon, a => host.BeginInvoke(a));
         widget.Clicked += ToggleFlyout;
         widget.Wheeled += steps => { if (S.Cities.Count > 0) Cycle(steps); };
         widget.RightClicked += () =>
@@ -92,7 +86,7 @@ sealed class SkyGlanceApp : ApplicationContext
 
         Updater.CleanupOld();
         if (Environment.GetCommandLineArgs().Contains("--updated"))
-            tray.ShowBalloonTip(6000, L.T("AppName"), L.F("Updated", Updater.CurrentText), ToolTipIcon.Info);
+            Toast.Show(L.T("AppName"), L.F("Updated", Updater.CurrentText));
         updateTimer.Tick += async (_, _) => { updateTimer.Interval = 6 * 3600 * 1000; await CheckForUpdatesAsync(false); };
         updateTimer.Start(); // first check 45 s after start, then every 6 hours
     }
@@ -248,10 +242,6 @@ sealed class SkyGlanceApp : ApplicationContext
         string t = now is { } n ? UnitFormat.Temperature(n.tempC, S.Temperature) : "--";
         string cond = now is { } m ? L.Condition(m.code) : !S.HasLocation ? L.T("Location") : "";
         widget.SetContent(t, cond, S.ShowHighLow ? HighLow() ?? "" : null, now is { } k ? WeatherCode.Icon(k.code) : SkyIcon.Cloudy, now?.day ?? true, S.ShowCondition, L.Ar);
-        string tip = now is { } p
-            ? $"{L.T("AppName")}: {ActivePlace?.Name}\n{UnitFormat.Temperature(p.tempC, S.Temperature)} {L.Condition(p.code)}"
-            : $"{L.T("AppName")}\n{(S.HasLocation ? L.T("Loading") : L.T("NoLocation"))}";
-        tray.Text = tip.Length <= 127 ? tip : tip[..127];
     }
 
     // ---------- windows ----------
@@ -354,7 +344,7 @@ sealed class SkyGlanceApp : ApplicationContext
             _ = InstallUpdateAsync(rel);
             return L.F("Updating", ver);
         }
-        tray.ShowBalloonTip(10000, L.T("AppName"), L.F("UpdateAvailable", ver), ToolTipIcon.Info);
+        Toast.Show(L.T("AppName"), L.F("UpdateAvailable", ver), () => _ = InstallUpdateAsync(rel));
         return L.F("UpdateAvailable", ver);
     }
 
@@ -362,14 +352,14 @@ sealed class SkyGlanceApp : ApplicationContext
     {
         if (installing) return;
         installing = true;
-        tray.ShowBalloonTip(4000, L.T("AppName"), L.F("Updating", rel.Version.ToString(3)), ToolTipIcon.Info);
+        Toast.Show(L.T("AppName"), L.F("Updating", rel.Version.ToString(3)));
         if (await Updater.InstallAsync(rel))
         {
             Exit();
             return;
         }
         installing = false;
-        tray.ShowBalloonTip(8000, L.T("AppName"), L.T("UpdateFailed"), ToolTipIcon.Warning);
+        Toast.Show(L.T("AppName"), L.T("UpdateFailed"));
         Updater.OpenPage(rel.PageUrl);
     }
 
@@ -408,7 +398,7 @@ sealed class SkyGlanceApp : ApplicationContext
         menu.Items.Add(L.T("CheckForUpdates"), null, async (_, _) =>
         {
             var msg = await CheckForUpdatesAsync(userInitiated: true);
-            if (!installing) tray.ShowBalloonTip(6000, L.T("AppName"), msg, ToolTipIcon.Info);
+            if (!installing) Toast.Show(L.T("AppName"), msg);
         });
         var startup = new ToolStripMenuItem(L.T("StartWithWindows")) { Checked = AppSettings.StartWithWindows };
         startup.Click += (_, _) => { try { AppSettings.StartWithWindows = !startup.Checked; } catch { } };
@@ -431,8 +421,6 @@ sealed class SkyGlanceApp : ApplicationContext
     public void Exit()
     {
         timer.Stop();
-        tray.Visible = false;
-        tray.Dispose();
         if (widget.Handle != IntPtr.Zero) widget.DestroyHandle();
         ExitThread();
     }
