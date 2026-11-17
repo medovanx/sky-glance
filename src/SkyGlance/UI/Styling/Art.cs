@@ -19,7 +19,8 @@ static class Art
     // Windows icon font: Segoe Fluent Icons (Win11) or Segoe MDL2 Assets (Win10) share these code points.
     public const string IconSettings = "\uE713", IconRefresh = "\uE72C", IconLocation = "\uE81D", IconUpdate = "\uE895",
                         IconGeneral = "\uE771", IconSearch = "\uE721", IconTaskbar = "\uE7C4", IconRuler = "\uECC6",
-                        IconWeather = "\uE9CA", IconChevronDown = "\uE70D", IconCalendar = "\uE787", IconPrev = "\uE76B", IconNext = "\uE76C", IconPrevYear = "\uE892", IconNextYear = "\uE893", IconDelete = "\uE74D", IconAdd = "\uE710";
+                        IconWeather = "\uE9CA", IconChevronDown = "\uE70D", IconCalendar = "\uE787", IconPrev = "\uE76B", IconNext = "\uE76C", IconPrevYear = "\uE892", IconNextYear = "\uE893", IconDelete = "\uE74D", IconAdd = "\uE710",
+                        IconOpen = "\uE8A7", IconDocument = "\uE8A5";
 
     public static readonly string IconFontName =
         new System.Drawing.Text.InstalledFontCollection().Families.Any(f => f.Name == "Segoe Fluent Icons")

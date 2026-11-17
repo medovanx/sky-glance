@@ -31,6 +31,7 @@ sealed class SettingsForm : Form
     // Updates
     readonly ToggleSwitch tglAutoCheck = new(), tglAutoInstall = new();
     readonly Button btnCheck = new() { AutoSize = true, Height = 30 };
+    readonly ProgressLine updateBar = new() { Width = 200, Visible = false };
     readonly Label lblUpdate = new() { AutoSize = true, Tag = "dim", MaximumSize = new Size(440, 0) };
 
     readonly Button btnSave = new() { Size = new Size(110, 34) }, btnCancel = new() { Size = new Size(110, 34) };
@@ -275,28 +276,37 @@ sealed class SettingsForm : Form
         tglAutoInstall.Checked = s.AutoInstallUpdates;
         btnCheck.Text = L.T("CheckNow");
         var version = new Label { Text = L.F("Version", Updater.CurrentText), AutoSize = true, Font = new Font("Segoe UI Semibold", 11f), Margin = new Padding(0, 0, 0, 8) };
-        // The project page: source, releases and issues.
-        var github = new LinkLabel
-        {
-            Text = Updater.RepoPage.Replace("https://", ""), AutoSize = true, Tag = "keep", Margin = new Padding(0, 6, 0, 0),
-            LinkColor = t.Accent, ActiveLinkColor = t.AccentHover, VisitedLinkColor = t.Accent, LinkBehavior = LinkBehavior.HoverUnderline,
-        };
-        github.LinkClicked += (_, _) => Updater.OpenPage(Updater.RepoPage);
-        var githubRow = Row(L.T("SourceCode"), github);
+        // The project page (source and issues) and the list of releases with their notes.
+        var btnGitHub = new IconButton { Width = 150, Height = 32, Glyph = Art.IconOpen, Theme = t, Text = L.T("GitHubRepo"), RightToLeft = RightToLeft };
+        var btnNotes = new IconButton { Width = 150, Height = 32, Glyph = Art.IconDocument, Theme = t, Text = L.T("ReleaseNotes"), RightToLeft = RightToLeft };
+        btnGitHub.Click += (_, _) => Updater.OpenPage(Updater.RepoPage);
+        btnNotes.Click += (_, _) => Updater.OpenPage(Updater.ReleasesPage);
         AddPage(Art.IconUpdate, L.T("Updates"), Card(L.T("Updates"), Art.IconUpdate,
             version,
             Row(L.T("AutoCheck"), tglAutoCheck),
             Row(L.T("AutoInstall"), tglAutoInstall),
-            Flow(btnCheck, lblUpdate),
-            githubRow));
+            Flow(btnCheck, updateBar, lblUpdate),
+            Flow(btnGitHub, btnNotes)));
         tglAutoCheck.CheckedChanged += (_, _) => SyncEnabled();
         btnCheck.Click += async (_, _) =>
         {
-            btnCheck.Enabled = false;
-            lblUpdate.Text = "...";
-            lblUpdate.Text = await app.CheckForUpdatesAsync(userInitiated: true);
-            btnCheck.Enabled = true;
+            string msg = await app.CheckForUpdatesAsync(userInitiated: true);
+            if (!app.UpdateBusy && !IsDisposed) lblUpdate.Text = msg;
         };
+        updateBar.Theme = t;
+        app.UpdateChanged += SyncUpdate;
+        FormClosed += (_, _) => app.UpdateChanged -= SyncUpdate;
+        if (app.UpdateBusy) SyncUpdate();
+    }
+
+    /// <summary>While busy, a progress bar stands where Check now was and the line beside it says what is happening.</summary>
+    void SyncUpdate()
+    {
+        if (IsDisposed) return;
+        updateBar.Visible = app.UpdateBusy;
+        btnCheck.Visible = !app.UpdateBusy;
+        updateBar.Value = app.UpdateFraction;
+        if (app.UpdateStatus.Length > 0) lblUpdate.Text = app.UpdateStatus;
     }
 
     void SyncEnabled()
@@ -372,10 +382,12 @@ sealed class SettingsForm : Form
     static FlowLayoutPanel Flow(params Control[] cs)
     {
         var p = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 4, 0, 4) };
-        int tallest = cs.Max(c => c.Height);
+        // An AutoSize label with no text yet has no height, so measure its preferred size instead.
+        static int H(Control c) => c.AutoSize ? Math.Max(c.Height, c.PreferredSize.Height) : c.Height;
+        int tallest = cs.Max(H);
         for (int i = 0; i < cs.Length; i++)
         {
-            int top = (tallest - cs[i].Height) / 2;
+            int top = (tallest - H(cs[i])) / 2;
             cs[i].Margin = new Padding(0, top, i < cs.Length - 1 ? 8 : 0, 0);
             p.Controls.Add(cs[i]);
         }

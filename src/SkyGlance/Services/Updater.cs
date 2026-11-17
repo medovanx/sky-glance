@@ -53,8 +53,11 @@ public static class Updater
         return null;
     }
 
+    /// <summary>Where an install is: bytes downloaded and the total (0 when unknown), and whether it is verifying now.</summary>
+    public readonly record struct Progress(long Done, long Total, bool Verifying);
+
     /// <summary>Downloads and swaps the exe, then starts the new version. Returns false if it couldn't.</summary>
-    public static async Task<bool> InstallAsync(Release rel)
+    public static async Task<bool> InstallAsync(Release rel, IProgress<Progress>? progress = null)
     {
         string exe = Environment.ProcessPath!;
         string fresh = exe + ".new", old = exe + ".old";
@@ -63,12 +66,25 @@ public static class Updater
             using (var resp = await Http.GetAsync(rel.AssetUrl, HttpCompletionOption.ResponseHeadersRead))
             {
                 resp.EnsureSuccessStatusCode();
+                long total = resp.Content.Headers.ContentLength ?? 0, done = 0;
                 await using var fs = File.Create(fresh);
-                await resp.Content.CopyToAsync(fs);
+                await using var src = await resp.Content.ReadAsStreamAsync();
+                var buf = new byte[81920];
+                var lastReport = DateTime.MinValue;
+                int n;
+                progress?.Report(new(0, total, false));
+                while ((n = await src.ReadAsync(buf)) > 0)
+                {
+                    await fs.WriteAsync(buf.AsMemory(0, n));
+                    done += n;
+                    if ((DateTime.UtcNow - lastReport).TotalMilliseconds >= 100) { lastReport = DateTime.UtcNow; progress?.Report(new(done, total, false)); }
+                }
+                progress?.Report(new(done, total, false));
             }
 
             if (rel.Sha256 != null)
             {
+                progress?.Report(new(0, 0, true));
                 await using var fs = File.OpenRead(fresh);
                 string actual = Convert.ToHexString(await SHA256.HashDataAsync(fs)).ToLowerInvariant();
                 if (actual != rel.Sha256.ToLowerInvariant()) { File.Delete(fresh); return false; }

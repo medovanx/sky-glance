@@ -324,19 +324,50 @@ sealed class SkyGlanceApp : ApplicationContext
     bool installing;
 
     /// <summary>Checks GitHub; installs automatically when allowed. Returns a status line.</summary>
+    /// <summary>True while checking for or installing an update, so the Updates page can show progress.</summary>
+    public bool UpdateBusy { get; private set; }
+    /// <summary>0 to 1 while downloading, null when the end isn't known (checking, verifying).</summary>
+    public double? UpdateFraction { get; private set; }
+    /// <summary>What the update is doing now, or its last result.</summary>
+    public string UpdateStatus { get; private set; } = "";
+    public event Action? UpdateChanged;
+
+    void SetUpdate(bool busy, double? fraction, string status)
+    {
+        UpdateBusy = busy; UpdateFraction = fraction; UpdateStatus = status;
+        UpdateChanged?.Invoke();
+    }
+
+    /// <summary>For screenshots: shows a download in progress without downloading anything.</summary>
+    internal void DemoUpdate(double fraction)
+    {
+        long total = 81_808_852, done = (long)(total * fraction);
+        SetUpdate(true, fraction, L.F("UpdateDownloading", "1.2.0", L.Ltr($"{100.0 * fraction:0}%  {Mb(done)} / {Mb(total)}")));
+    }
+
+    static string Mb(long bytes) => (bytes / 1048576.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " MB";
+
     public async Task<string> CheckForUpdatesAsync(bool userInitiated)
     {
         if (!userInitiated && !S.AutoCheckUpdates) return "";
+        if (installing) return UpdateStatus;
+        if (userInitiated && UpdateBusy) return UpdateStatus;
         Updater.Release? rel;
+        if (userInitiated) SetUpdate(true, null, L.T("CheckingUpdates"));
         try { rel = await Updater.CheckAsync(); }
         catch (Exception ex)
         {
             Log.Error(ex);
+            if (userInitiated) SetUpdate(false, null, L.T("UpdateCheckFailed"));
             return L.T("UpdateCheckFailed");
         }
         S.LastUpdateCheckUtc = DateTime.UtcNow;
         S.Save();
-        if (rel == null) return L.F("UpToDate", Updater.CurrentText);
+        if (rel == null)
+        {
+            if (userInitiated) SetUpdate(false, null, L.F("UpToDate", Updater.CurrentText));
+            return L.F("UpToDate", Updater.CurrentText);
+        }
 
         string ver = rel.Version.ToString(3);
         if (userInitiated || S.AutoInstallUpdates)
@@ -345,6 +376,7 @@ sealed class SkyGlanceApp : ApplicationContext
             return L.F("Updating", ver);
         }
         Toast.Show(L.T("AppName"), L.F("UpdateAvailable", ver), () => _ = InstallUpdateAsync(rel));
+        SetUpdate(false, null, L.F("UpdateAvailable", ver));
         return L.F("UpdateAvailable", ver);
     }
 
@@ -352,13 +384,27 @@ sealed class SkyGlanceApp : ApplicationContext
     {
         if (installing) return;
         installing = true;
-        Toast.Show(L.T("AppName"), L.F("Updating", rel.Version.ToString(3)));
-        if (await Updater.InstallAsync(rel))
+        string ver = rel.Version.ToString(3);
+        Toast.Show(L.T("AppName"), L.F("Updating", ver));
+        SetUpdate(true, 0, L.F("Updating", ver));
+        // Progress<T> made here posts its reports back to the UI thread.
+        var progress = new Progress<Updater.Progress>(p =>
         {
+            if (!installing) return;
+            if (p.Verifying) SetUpdate(true, null, L.T("UpdateVerifying"));
+            else if (p.Total > 0)
+                SetUpdate(true, (double)p.Done / p.Total,
+                    L.F("UpdateDownloading", ver, L.Ltr($"{100.0 * p.Done / p.Total:0}%  {Mb(p.Done)} / {Mb(p.Total)}")));
+            else SetUpdate(true, null, L.F("UpdateDownloading", ver, L.Ltr(Mb(p.Done))));
+        });
+        if (await Updater.InstallAsync(rel, progress))
+        {
+            SetUpdate(true, 1, L.F("UpdateRestarting", ver));
             Exit();
             return;
         }
         installing = false;
+        SetUpdate(false, null, L.T("UpdateFailed"));
         Toast.Show(L.T("AppName"), L.T("UpdateFailed"));
         Updater.OpenPage(rel.PageUrl);
     }

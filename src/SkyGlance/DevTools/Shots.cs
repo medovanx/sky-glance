@@ -39,6 +39,9 @@ static class Shots
                 settings.ShowPage(i);
                 SaveClient(settings, Path.Combine(dir, $"settings-{i}-{lang}.png"));
             }
+            settings.ShowPage(SettingsForm.UpdatesPage);
+            app.DemoUpdate(0.45);
+            SaveClient(settings, Path.Combine(dir, $"settings-updating-{lang}.png"));
             settings.Close();
 
             var day = new DayForm(app) { StartPosition = FormStartPosition.Manual, Location = new Point(-4000, -4000) };

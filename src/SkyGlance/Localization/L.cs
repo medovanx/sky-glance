@@ -144,7 +144,8 @@ public static class L
         ["Updates"] = ("Updates", "التحديثات"),
         ["AutoCheck"] = ("Check for updates automatically", "التحقق من التحديثات تلقائيًا"),
         ["AutoInstall"] = ("Install updates automatically", "تثبيت التحديثات تلقائيًا"),
-        ["SourceCode"] = ("Source code and releases on GitHub", "الشيفرة المصدرية والإصدارات على GitHub"),
+        ["GitHubRepo"] = ("GitHub page", "صفحة GitHub"),
+        ["ReleaseNotes"] = ("Release notes", "ملاحظات الإصدار"),
         ["CheckNow"] = ("Check now", "تحقق الآن"),
         ["Version"] = ("Version {0}", "الإصدار {0}"),
         ["UpToDate"] = ("You're on the latest version ({0}).", "لديك أحدث إصدار ({0})."),
@@ -152,6 +153,10 @@ public static class L
         ["Updating"] = ("Updating to {0}...", "جارٍ التحديث إلى {0}..."),
         ["UpdateFailed"] = ("Couldn't install the update. Opening the download page.", "تعذر تثبيت التحديث. سيتم فتح صفحة التنزيل."),
         ["UpdateCheckFailed"] = ("Couldn't check for updates.", "تعذر التحقق من التحديثات."),
+        ["CheckingUpdates"] = ("Checking for updates...", "جارٍ البحث عن تحديثات..."),
+        ["UpdateDownloading"] = ("Downloading {0}: {1}", "جارٍ تنزيل {0}: {1}"),
+        ["UpdateVerifying"] = ("Checking the download...", "جارٍ التحقق من التنزيل..."),
+        ["UpdateRestarting"] = ("Restarting into {0}...", "جارٍ إعادة التشغيل إلى {0}..."),
         ["Updated"] = ("Updated to version {0}.", "تم التحديث إلى الإصدار {0}."),
 
         ["Compass0"] = ("N", "ش"), ["Compass1"] = ("NE", "ش ق"), ["Compass2"] = ("E", "ق"), ["Compass3"] = ("SE", "ج ق"),
@@ -189,6 +194,9 @@ public static class L
     };
 
     public static string T(string key) => D.TryGetValue(key, out var v) ? (Ar ? v.ar : v.en) : key;
+
+    /// <summary>Keeps numbers and units in left to right order inside Arabic text.</summary>
+    public static string Ltr(string s) => "\u200E" + s + "\u200E";
 
     public static string F(string key, params object[] args) => string.Format(Culture, T(key), args);
 
