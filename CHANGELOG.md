@@ -3,6 +3,14 @@
 All notable changes to Sky Glance are listed here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.1] - 2026-11-17
+
+### Added
+- A Language submenu in the widget's right-click menu switches between English and Arabic.
+
+### Fixed
+- In Arabic, the condition line in the taskbar widget now lines up on the right like the temperature above it.
+
 ## [1.2.0] - 2026-11-17
 
 ### Changed
