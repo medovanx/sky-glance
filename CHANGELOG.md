@@ -3,6 +3,11 @@
 All notable changes to Sky Glance are listed here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- The animation setting also brings the big weather picture at the top of the flyout to life, only while the flyout is open.
+
 ## [1.3.1] - 2026-11-17
 
 ### Changed

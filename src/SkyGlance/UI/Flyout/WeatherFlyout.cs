@@ -20,6 +20,12 @@ sealed class WeatherFlyout : Form
     int dayRows = 7;
     public DateTime LastHidden { get; private set; }
 
+    // The big picture in the header comes alive like the widget's when the animation setting is on,
+    // only while the flyout is open; each frame repaints just that picture.
+    readonly System.Windows.Forms.Timer anim = new() { Interval = 83 };
+    float drift;
+    Rectangle iconArea = Rectangle.Empty;
+
     public WeatherFlyout(SkyGlanceApp app)
     {
         this.app = app;
@@ -47,7 +53,13 @@ sealed class WeatherFlyout : Form
             // Left and right step through the cities, in reading order.
             else if (e.KeyCode is Keys.Left or Keys.Right && app.S.Cities.Count > 0) app.Cycle((e.KeyCode == Keys.Right) != Rtl ? 1 : -1);
         };
-        app.Changed += () => { if (Visible && !IsDisposed) { Relayout(); Invalidate(); } };
+        app.Changed += () => { if (Visible && !IsDisposed) { Relayout(); Invalidate(); SyncAnim(); } };
+        anim.Tick += (_, _) =>
+        {
+            var icon = app.Now() is { } n ? WeatherCode.Icon(n.code) : SkyIcon.Cloudy;
+            drift = (drift + Art.DriftStep(icon)) % 1f;
+            if (!iconArea.IsEmpty) Invalidate(iconArea);
+        };
     }
 
     async Task RefreshNowAsync()
@@ -235,6 +247,15 @@ sealed class WeatherFlyout : Form
     {
         base.OnVisibleChanged(e);
         if (!Visible) LastHidden = DateTime.Now;
+        SyncAnim();
+    }
+
+    void SyncAnim() => anim.Enabled = Visible && !app.Headless && app.S.AnimateIcon && app.Forecast != null;
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) anim.Dispose();
+        base.Dispose(disposing);
     }
 
     // ---------- painting ----------
@@ -252,6 +273,8 @@ sealed class WeatherFlyout : Form
         var localNow = app.LocalNow;
 
         DrawHeader(g, f, now, localNow);
+        // An animation frame repaints only the header picture: skip the rest of the flyout.
+        if (e.ClipRectangle.Bottom <= Px(HeaderH)) return;
         int y = Px(HeaderH);
 
         if (f == null || now == null)
@@ -333,7 +356,10 @@ sealed class WeatherFlyout : Form
         if (now is not { } cur || f == null) return;
 
         int iconS = Px(68);
-        Art.Weather(g, M(new RectangleF(pad - Px(4), Px(64), iconS, iconS)), icon, isDay);
+        var iconBox = M(new RectangleF(pad - Px(4), Px(64), iconS, iconS));
+        // Room around the picture for the sun's glow and the stars, which reach past its square.
+        iconArea = Rectangle.Inflate(Rectangle.Round(iconBox), Px(6), Px(6));
+        Art.Weather(g, iconBox, icon, isDay, anim.Enabled ? drift : -1);
         string temp = Num(cur.tempC);
         var tempR = M(new Rectangle(pad + iconS + Px(4), Px(58), Px(130), Px(56)));
         TextRenderer.DrawText(g, temp, fBig, tempR, Color.White, (Rtl ? TextFormatFlags.Right : TextFormatFlags.Left) | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);

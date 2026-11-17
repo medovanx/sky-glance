@@ -168,7 +168,7 @@ public static class L
         ["RainAlerts"] = ("Tell me when rain is about to start or stop", "أعلمني عندما يوشك المطر أن يبدأ أو يتوقف"),
         ["RainAlertsNote"] = ("For my location, from the 15-minute forecast.", "لموقعي، من توقعات كل 15 دقيقة."),
         ["HoverCardSetting"] = ("Show the next hours when pointing at the widget", "عرض الساعات القادمة عند الإشارة إلى الأداة"),
-        ["AnimateIcon"] = ("Animate the weather picture in the widget", "تحريك صورة الطقس في الأداة"),
+        ["AnimateIcon"] = ("Animate the weather pictures", "تحريك صور الطقس"),
         ["AirDot"] = ("Show a dot on the widget when the air is poor", "إظهار نقطة على الأداة عندما يكون الهواء سيئًا"),
         ["ShowAirQuality"] = ("Air quality and pollen", "جودة الهواء وحبوب اللقاح"),
         ["ShowSky"] = ("Moon and golden hour", "القمر والساعة الذهبية"),
