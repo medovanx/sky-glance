@@ -16,7 +16,7 @@ public static class OpenMeteo
     const string DailyFields = "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max,wind_speed_10m_max";
 
     public static string Url(double latitude, double longitude, int days = 7) => string.Create(CultureInfo.InvariantCulture,
-        $"{Host}?latitude={latitude:0.####}&longitude={longitude:0.####}&current={CurrentFields}&hourly={HourlyFields}&daily={DailyFields}&timezone=auto&forecast_days={days}&forecast_hours=48");
+        $"{Host}?latitude={latitude:0.####}&longitude={longitude:0.####}&current={CurrentFields}&hourly={HourlyFields}&daily={DailyFields}&minutely_15=precipitation&timezone=auto&forecast_days={days}&forecast_hours=48&past_hours=24&forecast_minutely_15=12&past_minutely_15=4");
 
     public static Forecast Parse(string json, DateTime fetchedUtc)
     {
@@ -70,8 +70,20 @@ public static class OpenMeteo
             }
         }
 
+        // Rain in 15-minute steps for the next three hours (native in Europe and North America, from the hourly model elsewhere).
+        List<RainSlot>? minutely = null;
+        if (r.TryGetProperty("minutely_15", out var q) && q.TryGetProperty("time", out var qt))
+        {
+            minutely = [];
+            for (int i = 0; i < qt.GetArrayLength(); i++)
+            {
+                double mm = At(q, "precipitation", i);
+                if (!double.IsNaN(mm)) minutely.Add(new RainSlot(Time(qt[i]), mm));
+            }
+        }
+
         return new Forecast(Num(r, "latitude"), Num(r, "longitude"), Str(r, "timezone") ?? "GMT",
-            (int)Num(r, "utc_offset_seconds"), fetchedUtc, current, hourly, daily);
+            (int)Num(r, "utc_offset_seconds"), fetchedUtc, current, hourly, daily, minutely);
     }
 
     static double Zero(double v) => double.IsNaN(v) ? 0 : v;

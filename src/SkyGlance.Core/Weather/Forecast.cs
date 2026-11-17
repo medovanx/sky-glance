@@ -9,8 +9,20 @@ public sealed record Forecast(
     DateTime FetchedUtc,
     CurrentConditions Current,
     IReadOnlyList<HourlyPoint> Hourly,
-    IReadOnlyList<DailyPoint> Daily)
+    IReadOnlyList<DailyPoint> Daily,
+    IReadOnlyList<RainSlot>? Minutely = null)
 {
+    /// <summary>
+    /// How much warmer (positive) or colder than the same hour yesterday it is now, in °C; null when the
+    /// forecast has no hours from yesterday (a cache from before they were fetched).
+    /// </summary>
+    public double? ChangeSinceYesterday(DateTime localNow, double nowC)
+    {
+        var hour = new DateTime(localNow.Year, localNow.Month, localNow.Day, localNow.Hour, 0, 0).AddDays(-1);
+        var then = Hourly.FirstOrDefault(h => h.Time == hour);
+        return then == null ? null : nowC - then.TemperatureC;
+    }
+
     /// <summary>The wall clock at the forecast location, which may be in another time zone than this PC.</summary>
     public DateTime LocalNow(DateTime utcNow) => DateTime.SpecifyKind(utcNow, DateTimeKind.Unspecified).AddSeconds(UtcOffsetSeconds);
 

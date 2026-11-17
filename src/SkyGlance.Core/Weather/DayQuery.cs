@@ -27,7 +27,7 @@ public static class DayQuery
         string host = source == DaySource.Forecast ? OpenMeteo.Host : ArchiveHost;
         string d = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         return string.Create(CultureInfo.InvariantCulture,
-            $"{host}?latitude={latitude:0.####}&longitude={longitude:0.####}&start_date={d}&end_date={d}&daily={daily}&hourly=temperature_2m,weather_code,is_day&timezone=auto");
+            $"{host}?latitude={latitude:0.####}&longitude={longitude:0.####}&start_date={d}&end_date={d}&daily={daily}&hourly={(source == DaySource.Forecast ? "temperature_2m,weather_code,is_day,precipitation,precipitation_probability" : "temperature_2m,weather_code,is_day,precipitation")}&timezone=auto");
     }
 
     public static DayReport Parse(string json, DaySource source)
@@ -56,8 +56,10 @@ public static class DayQuery
                 if (!h.TryGetProperty("temperature_2m", out var ta) || ta[i].ValueKind != JsonValueKind.Number) continue;
                 int code = h.TryGetProperty("weather_code", out var ca) && ca[i].ValueKind == JsonValueKind.Number ? ca[i].GetInt32() : 0;
                 bool day = h.TryGetProperty("is_day", out var da) && da[i].ValueKind == JsonValueKind.Number && da[i].GetInt32() == 1;
+                int hourChance = h.TryGetProperty("precipitation_probability", out var pa) && pa[i].ValueKind == JsonValueKind.Number ? (int)Math.Round(pa[i].GetDouble()) : 0;
+                double mm = h.TryGetProperty("precipitation", out var ma) && ma[i].ValueKind == JsonValueKind.Number ? ma[i].GetDouble() : 0;
                 hours.Add(new HourlyPoint(DateTime.ParseExact(times[i].GetString()!, "yyyy-MM-dd'T'HH:mm", CultureInfo.InvariantCulture),
-                    ta[i].GetDouble(), code, 0, day));
+                    ta[i].GetDouble(), code, hourChance, day, mm));
             }
 
         var date = DateOnly.ParseExact(d.GetProperty("time")[0].GetString()!, "yyyy-MM-dd", CultureInfo.InvariantCulture);

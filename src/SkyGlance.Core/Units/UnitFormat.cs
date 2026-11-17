@@ -11,6 +11,12 @@ public static class UnitFormat
     public static string Temperature(double celsius, TemperatureUnit unit) =>
         UnitConvert.Whole(UnitConvert.Temperature(celsius, unit)).ToString(Inv) + "\u00B0";
 
+    /// <summary>
+    /// A temperature difference without its sign, such as "3°": it scales by 1.8 in Fahrenheit but has no 32° offset.
+    /// </summary>
+    public static string TemperatureDelta(double deltaC, TemperatureUnit unit) =>
+        UnitConvert.Whole(Math.Abs(unit == TemperatureUnit.Fahrenheit ? deltaC * 1.8 : deltaC)).ToString(Inv) + "°";
+
     /// <summary>"°C" or "°F".</summary>
     public static string TemperatureSymbol(TemperatureUnit unit) => unit == TemperatureUnit.Fahrenheit ? "\u00B0F" : "\u00B0C";
 
