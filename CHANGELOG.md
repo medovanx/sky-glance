@@ -3,7 +3,7 @@
 All notable changes to Sky Glance are listed here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.3.2] - 2026-11-17
 
 ### Changed
 - The animation setting also brings the flyout's header to life while it is open: the big picture moves, the cloud pattern drifts, and rain streaks, snowflakes or stars move behind it.
