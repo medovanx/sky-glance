@@ -473,8 +473,8 @@ sealed class WeatherFlyout : Form
             (L.T("RainChance"), c.PrecipitationMm > 0
                 ? [UnitFormat.Percent(chance), UnitFormat.Precipitation(c.PrecipitationMm, app.S.Precipitation)]
                 : [UnitFormat.Percent(chance)], null),
-            (L.T("Sunrise"), [Sun(today?.Sunrise)], null),
-            (L.T("Sunset"), [Sun(today?.Sunset)], null),
+            (L.T("Sunrise"), [Sun(today?.Sunrise)], (gr, box) => Art.SunHorizon(gr, box, true, t.Dim)),
+            (L.T("Sunset"), [Sun(today?.Sunset)], (gr, box) => Art.SunHorizon(gr, box, false, t.Dim)),
         };
         double lat = app.ActivePlace?.Latitude ?? f.Latitude, lon = app.ActivePlace?.Longitude ?? f.Longitude;
         if (app.S.ShowAirQuality)
@@ -520,7 +520,7 @@ sealed class WeatherFlyout : Form
             if (tiles[i].picture is { } draw)
             {
                 // A small picture on the reading side of the value: the moon, or the air quality colour.
-                int ps = Px(16);
+                int ps = Px(18);
                 var box = new RectangleF(Rtl ? valueR.Right - ps : valueR.X, valueR.Y + (valueR.Height - ps) / 2f, ps, ps);
                 draw(g, box);
                 valueR = Rtl ? new Rectangle(valueR.X, valueR.Y, valueR.Width - ps - Px(6), valueR.Height)

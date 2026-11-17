@@ -450,6 +450,44 @@ static class Art
         g.Restore(st);
     }
 
+    /// <summary>
+    /// A sun half over the horizon with a small arrow beside it, up for sunrise and down for sunset,
+    /// for the flyout's sunrise and sunset tiles.
+    /// </summary>
+    public static void SunHorizon(Graphics g, RectangleF box, bool rising, Color line)
+    {
+        var st = g.Save();
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        float n = Math.Min(box.Width, box.Height);
+        float x = box.X + (box.Width - n) / 2, y = box.Y + (box.Height - n) / 2;
+        float cx = x + n * 0.42f, hy = y + n * 0.74f, r = n * 0.3f;
+        // Short rays, then the half disc clipped at the horizon, then the horizon line.
+        using (var pen = new Pen(Sun, Math.Max(1f, n * 0.08f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            foreach (int deg in new[] { 180, 225, 270, 315, 360 })
+            {
+                double a = deg * Math.PI / 180;
+                float cos = (float)Math.Cos(a), sin = (float)Math.Sin(a);
+                g.DrawLine(pen, cx + cos * r * 1.35f, hy + sin * r * 1.35f, cx + cos * r * 1.7f, hy + sin * r * 1.7f);
+            }
+        using (var half = new GraphicsPath())
+        {
+            half.AddPie(cx - r, hy - r, r * 2, r * 2, 180, 180);
+            using var b = new LinearGradientBrush(new RectangleF(cx - r, hy - r, r * 2, r), SunCore, Sun, LinearGradientMode.Vertical);
+            g.FillPath(b, half);
+        }
+        using (var pen = new Pen(line, Math.Max(1f, n * 0.08f)) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+        {
+            g.DrawLine(pen, x + n * 0.04f, hy, x + n * 0.8f, hy);
+            // The arrow, on the far right: up for sunrise, down for sunset.
+            float ax = x + n * 0.9f, top = y + n * 0.3f, bottom = y + n * 0.66f, head = n * 0.1f;
+            g.DrawLine(pen, ax, top, ax, bottom);
+            float tip = rising ? top : bottom, back = rising ? tip + head : tip - head;
+            g.DrawLine(pen, ax, tip, ax - head, back);
+            g.DrawLine(pen, ax, tip, ax + head, back);
+        }
+        g.Restore(st);
+    }
+
     /// <summary>The brand mark: a sun peeking out behind a cloud.</summary>
     public static void Mark(Graphics g, RectangleF box) => Weather(g, box, SkyIcon.PartlyCloudy, true);
 }
