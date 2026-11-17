@@ -109,7 +109,7 @@ static class Art
         if (pulse >= 0)
         {
             // A soft glow that swells and fades, behind the rays.
-            float k = (1 - MathF.Cos(pulse * MathF.PI * 2)) / 2, gr = r * (1.45f + 0.4f * k);
+            float k = (1 - MathF.Cos(pulse * MathF.PI * 2)) / 2, gr = r * (1.4f + 0.6f * k);
             using var glow = new GraphicsPath();
             glow.AddEllipse(c.X - gr, c.Y - gr, gr * 2, gr * 2);
             using var gb = new PathGradientBrush(glow) { CenterColor = Color.FromArgb((int)(120 + 110 * k), Sun), SurroundColors = [Color.FromArgb(0, Sun)] };
@@ -120,7 +120,8 @@ static class Art
             using var pen = new Pen(Sun, Math.Max(1f, r * 0.2f)) { StartCap = LineCap.Round, EndCap = LineCap.Round };
             for (int i = 0; i < 8; i++)
             {
-                double a = Math.PI * i / 4;
+                // While animating the rays turn one ray's width per cycle, so the loop is seamless.
+                double a = Math.PI * i / 4 + (pulse >= 0 ? pulse * Math.PI / 4 : 0);
                 float cos = (float)Math.Cos(a), sin = (float)Math.Sin(a);
                 g.DrawLine(pen, c.X + cos * r * 1.35f, c.Y + sin * r * 1.35f, c.X + cos * r * 1.75f, c.Y + sin * r * 1.75f);
             }
@@ -202,19 +203,19 @@ static class Art
             case SkyIcon.PartlyCloudy:
                 Body(new PointF(x + n * 0.36f, y + n * 0.36f), day ? n * 0.17f : n * 0.24f);
                 // The cloud drifts a little to and fro in front of the sun or moon.
-                Cloud(g, new RectangleF(x + n * 0.2f + sway * n * 0.05f, y + n * 0.4f, n * 0.76f, n * 0.48f), CloudWhite, n);
+                Cloud(g, new RectangleF(x + n * 0.2f + sway * n * 0.1f, y + n * 0.4f, n * 0.76f, n * 0.48f), CloudWhite, n);
                 break;
             case SkyIcon.Cloudy:
                 // The two clouds drift past each other.
-                Cloud(g, new RectangleF(x + n * 0.3f + sway * n * 0.05f, y + n * 0.16f, n * 0.64f, n * 0.42f), CloudGrey, n);
-                Cloud(g, new RectangleF(x + n * 0.04f - sway * n * 0.04f, y + n * 0.36f, n * 0.8f, n * 0.5f), CloudWhite, n);
+                Cloud(g, new RectangleF(x + n * 0.3f + sway * n * 0.1f, y + n * 0.16f, n * 0.64f, n * 0.42f), CloudGrey, n);
+                Cloud(g, new RectangleF(x + n * 0.04f - sway * n * 0.08f, y + n * 0.36f, n * 0.8f, n * 0.5f), CloudWhite, n);
                 break;
             case SkyIcon.Fog:
                 Cloud(g, top, CloudGrey, n);
                 using (var pen = new Pen(Color.FromArgb(200, 210, 220, 232), n * 0.07f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
                 {
                     // The mist lines slide sideways, in opposite directions.
-                    float m1 = sway * n * 0.07f, m2 = -sway * n * 0.06f;
+                    float m1 = sway * n * 0.12f, m2 = -sway * n * 0.1f;
                     g.DrawLine(pen, x + n * 0.14f + m1, y + n * 0.76f, x + n * 0.86f + m1, y + n * 0.76f);
                     g.DrawLine(pen, x + n * 0.26f + m2, y + n * 0.9f, x + n * 0.74f + m2, y + n * 0.9f);
                 }
@@ -308,7 +309,8 @@ static class Art
     }
 
     /// <summary>Faint little filled clouds in staggered rows, as a background pattern for headers.</summary>
-    public static void CloudPattern(Graphics g, Rectangle area, float cell, Color c)
+    /// <param name="shift">Pixels to slide the pattern to the right, for a slow drift; it repeats, so any value works.</param>
+    public static void CloudPattern(Graphics g, Rectangle area, float cell, Color c, float shift = 0)
     {
         var st = g.Save();
         g.SetClip(area);
@@ -316,11 +318,60 @@ static class Art
         using var brush = new SolidBrush(c);
         int row = 0;
         for (float yy = area.Top - cell * 0.3f; yy < area.Bottom; yy += cell * 0.62f, row++)
-            for (float xx = area.Left - cell + (row % 2) * cell * 0.55f; xx < area.Right; xx += cell * 1.1f)
+            for (float xx = area.Left - cell * 2.1f + (row % 2) * cell * 0.55f + shift % (cell * 1.1f); xx < area.Right; xx += cell * 1.1f)
             {
                 using var p = CloudPath(new RectangleF(xx, yy, cell * 0.6f, cell * 0.32f));
                 g.FillPath(brush, p);
             }
+        g.Restore(st);
+    }
+
+    /// <summary>
+    /// The weather behind a header, for the flyout's animation: rain streaks or snowflakes falling across it,
+    /// or stars twinkling on a clear night. <paramref name="seconds"/> is the time since the animation started.
+    /// Each particle has a fixed place from its index, so frames follow on smoothly without random jumps.
+    /// </summary>
+    public static void HeaderWeather(Graphics g, Rectangle area, SkyIcon icon, bool day, float seconds, float s)
+    {
+        var st = g.Save();
+        g.SetClip(area);
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        static float Hash(int i, int k) { uint h = (uint)(i * 374761393 + k * 668265263); h = (h ^ (h >> 13)) * 1274126177; return (h ^ (h >> 16)) / (float)uint.MaxValue; }
+        float w = area.Width, h = area.Height;
+        if (icon is SkyIcon.Rain or SkyIcon.Drizzle or SkyIcon.Thunder or SkyIcon.Sleet)
+        {
+            int count = icon == SkyIcon.Drizzle ? 26 : 44;
+            float len = (icon == SkyIcon.Drizzle ? 8 : 14) * s, speed = (icon == SkyIcon.Drizzle ? 120 : 260) * s;
+            using var pen = new Pen(Color.FromArgb(icon == SkyIcon.Drizzle ? 50 : 70, 220, 235, 255), Math.Max(1f, 1.2f * s)) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+            for (int i = 0; i < count; i++)
+            {
+                float travel = h + len * 2, yy = (Hash(i, 1) * travel + seconds * speed * (0.8f + 0.4f * Hash(i, 2))) % travel - len;
+                float xx = area.Left + Hash(i, 3) * (w + h * 0.25f) - yy * 0.25f;
+                g.DrawLine(pen, xx, area.Top + yy, xx - len * 0.25f, area.Top + yy + len);
+            }
+        }
+        if (icon is SkyIcon.Snow or SkyIcon.Sleet)
+        {
+            int count = icon == SkyIcon.Snow ? 34 : 14;
+            for (int i = 0; i < count; i++)
+            {
+                float r = (1.2f + 1.6f * Hash(i, 4)) * s, travel = h + r * 4;
+                float yy = (Hash(i, 5) * travel + seconds * (22 + 18 * Hash(i, 6)) * s) % travel - r * 2;
+                float xx = area.Left + Hash(i, 7) * w + MathF.Sin(seconds * 1.3f + i) * 6 * s;
+                using var b = new SolidBrush(Color.FromArgb(150, 255, 255, 255));
+                g.FillEllipse(b, xx - r, area.Top + yy - r, r * 2, r * 2);
+            }
+        }
+        if (!day && icon is SkyIcon.Clear or SkyIcon.PartlyCloudy)
+        {
+            for (int i = 0; i < 26; i++)
+            {
+                float k = (1 + MathF.Sin(seconds * (1.2f + Hash(i, 8)) + i * 2.1f)) / 2;
+                float r = (0.8f + 1.2f * Hash(i, 9)) * s * (0.6f + 0.6f * k);
+                using var b = new SolidBrush(Color.FromArgb((int)(40 + 180 * k), 255, 252, 230));
+                g.FillEllipse(b, area.Left + Hash(i, 10) * w - r, area.Top + Hash(i, 11) * h * 0.9f - r, r * 2, r * 2);
+            }
+        }
         g.Restore(st);
     }
 
@@ -329,9 +380,9 @@ static class Art
 
     /// <summary>
     /// How far the animation moves per frame (12 a second): rain loops in about 3 s, thunder in about 5 s so its
-    /// flash comes now and then, and the slow sway of clouds, fog, sun and stars in about 14 s.
+    /// flash comes now and then, and the sway of clouds, fog, sun and stars in about 6 s.
     /// </summary>
-    public static float DriftStep(SkyIcon icon) => icon == SkyIcon.Thunder ? 0.015f : Falls(icon) ? 0.03f : 0.006f;
+    public static float DriftStep(SkyIcon icon) => icon == SkyIcon.Thunder ? 0.015f : Falls(icon) ? 0.03f : 0.014f;
 
     /// <summary>Colour of the air quality bands, from green (good) to purple (extremely poor).</summary>
     public static Color AirColor(AirCategory c) => c switch

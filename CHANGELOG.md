@@ -6,7 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Changed
-- The animation setting also brings the big weather picture at the top of the flyout to life, only while the flyout is open.
+- The animation setting also brings the flyout's header to life while it is open: the big picture moves, the cloud pattern drifts, and rain streaks, snowflakes or stars move behind it.
+- Animations move more and faster: the sun's rays turn while its glow breathes, clouds and fog travel twice as far, and the slow motions repeat every 6 seconds instead of 14.
 
 ## [1.3.1] - 2026-11-17
 

@@ -41,6 +41,39 @@ static class Shots
                 settings.ShowPage(i);
                 SaveClient(settings, Path.Combine(dir, $"settings-{i}-{lang}.png"));
             }
+            // The flyout header as animation frames, for rain, snow and a clear night.
+            if (lang == "en")
+            {
+                var key = Place.KeyOf(DemoData.Lat, DemoData.Lon);
+                var home = all[key];
+                foreach (var (name, code, isDay) in new[] { ("rain", 63, true), ("snow", 73, true), ("night", 0, false) })
+                {
+                    all[key] = home with { Current = home.Current with { Code = code, IsDay = isDay } };
+                    var frames = new List<Bitmap>();
+                    foreach (float at in new[] { 0f, 0.6f, 1.2f })
+                    {
+                        var fly = new WeatherFlyout(app);
+                        fly.ShowForShot(true);
+                        fly.ShotFrame(at);
+                        var bmp = new Bitmap(fly.Width, fly.Width * 166 / 380);
+                        fly.DrawToBitmap(new Bitmap(fly.Width, fly.Height) is var whole ? whole : whole, new Rectangle(0, 0, fly.Width, fly.Height));
+                        using (var gg = Graphics.FromImage(bmp)) gg.DrawImage(whole, 0, 0);
+                        whole.Dispose();
+                        frames.Add(bmp);
+                        fly.Dispose();
+                    }
+                    using var strip = new Bitmap(frames.Sum(f => f.Width) + 8 * (frames.Count - 1), frames[0].Height);
+                    using (var gs = Graphics.FromImage(strip))
+                    {
+                        gs.Clear(Color.Black);
+                        int x = 0;
+                        foreach (var f in frames) { gs.DrawImage(f, x, 0); x += f.Width + 8; f.Dispose(); }
+                    }
+                    strip.Save(Path.Combine(dir, $"header-anim-{name}.png"), ImageFormat.Png);
+                }
+                all[key] = home;
+            }
+
             foreach (var dark in new[] { true, false })
             {
                 var card = new HoverCard();

@@ -20,11 +20,11 @@ sealed class WeatherFlyout : Form
     int dayRows = 7;
     public DateTime LastHidden { get; private set; }
 
-    // The big picture in the header comes alive like the widget's when the animation setting is on,
-    // only while the flyout is open; each frame repaints just that picture.
+    // The header comes alive when the animation setting is on, only while the flyout is open: the big picture
+    // moves like the widget's, the cloud pattern drifts and rain, snow or stars move behind. Each frame repaints just the header.
     readonly System.Windows.Forms.Timer anim = new() { Interval = 83 };
-    float drift;
-    Rectangle iconArea = Rectangle.Empty;
+    float drift, seconds;
+    bool shotMoving; // --shots: draw the header as an animation frame
 
     public WeatherFlyout(SkyGlanceApp app)
     {
@@ -58,7 +58,8 @@ sealed class WeatherFlyout : Form
         {
             var icon = app.Now() is { } n ? WeatherCode.Icon(n.code) : SkyIcon.Cloudy;
             drift = (drift + Art.DriftStep(icon)) % 1f;
-            if (!iconArea.IsEmpty) Invalidate(iconArea);
+            seconds += anim.Interval / 1000f;
+            Invalidate(new Rectangle(0, 0, Width, Px(HeaderH)));
         };
     }
 
@@ -151,6 +152,16 @@ sealed class WeatherFlyout : Form
         LayoutButtons();
         Show();
         Location = new Point(-4000, -4000);
+    }
+
+    /// <summary>For --shots: freezes the header animation at <paramref name="at"/> seconds.</summary>
+    public void ShotFrame(float at)
+    {
+        shotMoving = true;
+        seconds = at;
+        var icon = app.Now() is { } n ? WeatherCode.Icon(n.code) : SkyIcon.Cloudy;
+        drift = at * 12 * Art.DriftStep(icon) % 1f;
+        Invalidate();
     }
 
     /// <summary>
@@ -308,7 +319,10 @@ sealed class WeatherFlyout : Form
         var (c1, c2) = Art.SkyColors(icon, isDay);
         using (var grad = new LinearGradientBrush(head, c1, c2, LinearGradientMode.ForwardDiagonal))
             g.FillRectangle(grad, head);
-        Art.CloudPattern(g, head, Px(46), Color.FromArgb(18, 255, 255, 255));
+        // While animating, the cloud pattern drifts slowly and the weather falls or twinkles behind the header.
+        bool moving = anim.Enabled || shotMoving;
+        Art.CloudPattern(g, head, Px(46), Color.FromArgb(18, 255, 255, 255), moving ? seconds * Px(8) : 0);
+        if (moving) Art.HeaderWeather(g, head, icon, isDay, seconds, S);
 
         int pad = Px(Pad);
         using var fName = new Font("Segoe UI Semibold", 10.5f);
@@ -357,9 +371,7 @@ sealed class WeatherFlyout : Form
 
         int iconS = Px(68);
         var iconBox = M(new RectangleF(pad - Px(4), Px(64), iconS, iconS));
-        // Room around the picture for the sun's glow and the stars, which reach past its square.
-        iconArea = Rectangle.Inflate(Rectangle.Round(iconBox), Px(6), Px(6));
-        Art.Weather(g, iconBox, icon, isDay, anim.Enabled ? drift : -1);
+        Art.Weather(g, iconBox, icon, isDay, moving ? drift : -1);
         string temp = Num(cur.tempC);
         var tempR = M(new Rectangle(pad + iconS + Px(4), Px(58), Px(130), Px(56)));
         TextRenderer.DrawText(g, temp, fBig, tempR, Color.White, (Rtl ? TextFormatFlags.Right : TextFormatFlags.Left) | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
