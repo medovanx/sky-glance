@@ -42,7 +42,7 @@ with Celsius or Fahrenheit and five wind units. English and Arabic. No account, 
 - **The time where the weather is.** A city in another time zone shows its own clock and its own "now".
 - **Units.** Celsius or Fahrenheit; km/h, m/s, mph, knots or Beaufort; millimetres or inches. Switch the temperature unit straight from the right-click menu.
 - **Works offline.** The last forecast is kept on disk and shown until the next one arrives; refreshes retry with a growing delay.
-- **Gentle animation.** Rain and snow can drift in the widget's picture (off by default).
+- **Gentle animation.** The widget's picture can come alive (off by default): rain and snow fall, clouds and fog drift, the sun's glow breathes, stars twinkle by the moon and lightning flashes now and then.
 - **English and Arabic.** Full right-to-left layout in Arabic. Light and dark theme follow Windows. A 12-hour or 24-hour clock, like Windows by default.
 - **Auto-updates.** Checks GitHub Releases, verifies the download's SHA-256 and updates itself in place.
 - **Light and native.** One small Windows app, no Electron, no ads, no account.

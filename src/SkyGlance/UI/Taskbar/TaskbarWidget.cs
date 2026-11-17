@@ -66,7 +66,7 @@ sealed class TaskbarWidget : NativeWindow
     }
 
     /// <param name="airDot">Colour of a dot by the picture when the air is poor, or null for none.</param>
-    /// <param name="animated">Let rain and snow drift in the picture (only pictures with something falling move).</param>
+    /// <param name="animated">Animate the picture: rain and snow fall, clouds and fog drift, the sun glows, stars twinkle.</param>
     public void SetExtras(Color? airDot, bool animated)
     {
         if (airDot == badge && animated == animate) return;
@@ -75,7 +75,7 @@ sealed class TaskbarWidget : NativeWindow
         if (Alive) Render();
     }
 
-    bool Drifting => animate && Art.Falls(icon);
+    bool Drifting => animate;
 
     /// <summary>One timer for both motions: about 30 frames a second for the progress line, 12 for falling rain or snow.</summary>
     void SyncAnim()
@@ -86,7 +86,8 @@ sealed class TaskbarWidget : NativeWindow
             anim.Tick += (_, _) =>
             {
                 if (busy && fraction == null) phase = (phase + 0.02f) % 1f;
-                if (Drifting) drift = (drift + (busy && fraction == null ? 0.011f : 0.03f)) % 1f;
+                // While the progress line slides (30 frames a second) the picture steps at the same speed per second.
+                if (Drifting) drift = (drift + Art.DriftStep(icon) * (busy && fraction == null ? 33f / 83f : 1f)) % 1f;
                 if (Alive) Render();
             };
         }

@@ -73,6 +73,7 @@ static class Shots
             day.Close();
         }
         Icons(Path.Combine(dir, "icons.png"));
+        AnimationFrames(Path.Combine(dir, "animation-frames.png"));
         Menu(Path.Combine(dir, "menu-dark.png"), true);
         Menu(Path.Combine(dir, "menu-light.png"), false);
         return 0;
@@ -106,6 +107,21 @@ static class Shots
         for (int row = 0; row < 4; row++)
             for (int i = 0; i < all.Length; i++)
                 Art.Weather(g, new RectangleF(12 + i * (n + 12), 12 + row * (n + 12), n, n), all[i], row % 2 == 0);
+        bmp.Save(path, ImageFormat.Png);
+    }
+
+    /// <summary>Frames from each picture's animation (day and night, on the dark taskbar colour), for a visual check.</summary>
+    static void AnimationFrames(string path)
+    {
+        var all = Enum.GetValues<SkyIcon>();
+        float[] frames = [0f, 0.02f, 0.17f, 0.33f, 0.5f, 0.67f, 0.83f];
+        int n = 48, cols = frames.Length * 2;
+        using var bmp = new Bitmap(cols * (n + 8) + 16, all.Length * (n + 8) + 8);
+        using var g = Graphics.FromImage(bmp);
+        g.Clear(Color.FromArgb(28, 31, 36));
+        for (int i = 0; i < all.Length; i++)
+            for (int k = 0; k < cols; k++)
+                Art.Weather(g, new RectangleF(8 + k * (n + 8) + (k >= frames.Length ? 8 : 0), 8 + i * (n + 8), n, n), all[i], k < frames.Length, frames[k % frames.Length]);
         bmp.Save(path, ImageFormat.Png);
     }
 

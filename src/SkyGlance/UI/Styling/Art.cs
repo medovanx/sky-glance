@@ -103,8 +103,18 @@ static class Art
         g.FillPath(b, p);
     }
 
-    static void SunDisc(Graphics g, PointF c, float r, bool rays)
+    /// <param name="pulse">0 to 1 through one slow breath of the glow when animating, or negative for none.</param>
+    static void SunDisc(Graphics g, PointF c, float r, bool rays, float pulse = -1)
     {
+        if (pulse >= 0)
+        {
+            // A soft glow that swells and fades, behind the rays.
+            float k = (1 - MathF.Cos(pulse * MathF.PI * 2)) / 2, gr = r * (1.45f + 0.4f * k);
+            using var glow = new GraphicsPath();
+            glow.AddEllipse(c.X - gr, c.Y - gr, gr * 2, gr * 2);
+            using var gb = new PathGradientBrush(glow) { CenterColor = Color.FromArgb((int)(120 + 110 * k), Sun), SurroundColors = [Color.FromArgb(0, Sun)] };
+            g.FillPath(gb, glow);
+        }
         if (rays)
         {
             using var pen = new Pen(Sun, Math.Max(1f, r * 0.2f)) { StartCap = LineCap.Round, EndCap = LineCap.Round };
@@ -164,7 +174,8 @@ static class Art
     }
 
     /// <summary>Draws the picture for <paramref name="icon"/> centred in a square inside <paramref name="box"/>.</summary>
-    /// <param name="drift">0 to 1 to draw the rain or snow partway through its fall (the widget's animation); negative for the still picture.</param>
+    /// <param name="drift">0 to 1 through the animation cycle (falling rain and snow, drifting clouds and fog, the sun's glow,
+    /// twinkling stars, the lightning flash); negative for the still picture.</param>
     public static void Weather(Graphics g, RectangleF box, SkyIcon icon, bool day, float drift = -1)
     {
         float n = Math.Min(box.Width, box.Height);
@@ -173,7 +184,14 @@ static class Art
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
-        void Body(PointF c, float r) { if (day) SunDisc(g, c, r, true); else MoonDisc(g, c, r); }
+        // Slow motions run once per animation cycle, so the last frame meets the first: sway is -1 to 1 and back.
+        bool moving = drift >= 0;
+        float sway = moving ? MathF.Sin(drift * MathF.PI * 2) : 0;
+        void Body(PointF c, float r)
+        {
+            if (day) SunDisc(g, c, r, true, drift);
+            else { MoonDisc(g, c, r); if (moving) Stars(g, c, r, drift); }
+        }
         var top = new RectangleF(x + n * 0.06f, y + n * 0.1f, n * 0.88f, n * 0.56f);
 
         switch (icon)
@@ -183,25 +201,36 @@ static class Art
                 break;
             case SkyIcon.PartlyCloudy:
                 Body(new PointF(x + n * 0.36f, y + n * 0.36f), day ? n * 0.17f : n * 0.24f);
-                Cloud(g, new RectangleF(x + n * 0.2f, y + n * 0.4f, n * 0.76f, n * 0.48f), CloudWhite, n);
+                // The cloud drifts a little to and fro in front of the sun or moon.
+                Cloud(g, new RectangleF(x + n * 0.2f + sway * n * 0.05f, y + n * 0.4f, n * 0.76f, n * 0.48f), CloudWhite, n);
                 break;
             case SkyIcon.Cloudy:
-                Cloud(g, new RectangleF(x + n * 0.3f, y + n * 0.16f, n * 0.64f, n * 0.42f), CloudGrey, n);
-                Cloud(g, new RectangleF(x + n * 0.04f, y + n * 0.36f, n * 0.8f, n * 0.5f), CloudWhite, n);
+                // The two clouds drift past each other.
+                Cloud(g, new RectangleF(x + n * 0.3f + sway * n * 0.05f, y + n * 0.16f, n * 0.64f, n * 0.42f), CloudGrey, n);
+                Cloud(g, new RectangleF(x + n * 0.04f - sway * n * 0.04f, y + n * 0.36f, n * 0.8f, n * 0.5f), CloudWhite, n);
                 break;
             case SkyIcon.Fog:
                 Cloud(g, top, CloudGrey, n);
                 using (var pen = new Pen(Color.FromArgb(200, 210, 220, 232), n * 0.07f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
                 {
-                    g.DrawLine(pen, x + n * 0.14f, y + n * 0.76f, x + n * 0.86f, y + n * 0.76f);
-                    g.DrawLine(pen, x + n * 0.26f, y + n * 0.9f, x + n * 0.74f, y + n * 0.9f);
+                    // The mist lines slide sideways, in opposite directions.
+                    float m1 = sway * n * 0.07f, m2 = -sway * n * 0.06f;
+                    g.DrawLine(pen, x + n * 0.14f + m1, y + n * 0.76f, x + n * 0.86f + m1, y + n * 0.76f);
+                    g.DrawLine(pen, x + n * 0.26f + m2, y + n * 0.9f, x + n * 0.74f + m2, y + n * 0.9f);
                 }
                 break;
             case SkyIcon.Thunder:
                 Cloud(g, top, StormCloud, n);
                 PointF[] bolt = [new(x + n * 0.54f, y + n * 0.56f), new(x + n * 0.38f, y + n * 0.8f), new(x + n * 0.5f, y + n * 0.8f),
                                  new(x + n * 0.42f, y + n * 0.98f), new(x + n * 0.66f, y + n * 0.72f), new(x + n * 0.53f, y + n * 0.72f), new(x + n * 0.62f, y + n * 0.56f)];
-                using (var b = new SolidBrush(Bolt)) g.FillPolygon(b, bolt);
+                // Once a cycle the bolt flickers twice: brighter, with a glow around it.
+                bool flash = moving && (drift < 0.04f || drift is >= 0.08f and < 0.11f);
+                if (flash)
+                {
+                    using var halo = new Pen(Color.FromArgb(110, 255, 245, 190), n * 0.12f) { LineJoin = LineJoin.Round };
+                    g.DrawPolygon(halo, bolt);
+                }
+                using (var b = new SolidBrush(flash ? Color.FromArgb(255, 252, 225) : Bolt)) g.FillPolygon(b, bolt);
                 Drops(g, x, y, n, [0.24f, 0.8f], 0.16f, drift);
                 break;
             default: // drizzle, rain, sleet, snow
@@ -212,6 +241,21 @@ static class Art
                 break;
         }
         g.Restore(st);
+    }
+
+    /// <summary>Three tiny stars around a clear night's moon, each twinkling at its own moment in the cycle.</summary>
+    static void Stars(Graphics g, PointF c, float r, float drift)
+    {
+        (float dx, float dy, float size, float offset)[] stars = [(-1.25f, -0.85f, 0.16f, 0f), (1.15f, 0.95f, 0.12f, 0.33f), (-1.05f, 1.05f, 0.1f, 0.66f)];
+        foreach (var (dx, dy, size, offset) in stars)
+        {
+            float k = (1 - MathF.Cos((drift + offset) * MathF.PI * 2)) / 2;
+            float s = r * size * (0.7f + 0.5f * k), sx = c.X + dx * r, sy = c.Y + dy * r;
+            using var b = new SolidBrush(Color.FromArgb((int)(60 + 195 * k), 255, 250, 225));
+            // A four-pointed sparkle: two thin diamonds crossed.
+            g.FillPolygon(b, new PointF[] { new(sx, sy - s * 2), new(sx + s * 0.45f, sy), new(sx, sy + s * 2), new(sx - s * 0.45f, sy) });
+            g.FillPolygon(b, new PointF[] { new(sx - s * 2, sy), new(sx, sy + s * 0.45f), new(sx + s * 2, sy), new(sx, sy - s * 0.45f) });
+        }
     }
 
     /// <summary>Where drop <paramref name="i"/> is in its fall (0 to 1) when animating, staggered so they don't move together.</summary>
@@ -280,8 +324,14 @@ static class Art
         g.Restore(st);
     }
 
-    /// <summary>True for pictures with something falling, which the widget can animate.</summary>
+    /// <summary>True for pictures with something falling: their animation runs faster than the slow sway of the others.</summary>
     public static bool Falls(SkyIcon icon) => icon is SkyIcon.Drizzle or SkyIcon.Rain or SkyIcon.Sleet or SkyIcon.Snow or SkyIcon.Thunder;
+
+    /// <summary>
+    /// How far the animation moves per frame (12 a second): rain loops in about 3 s, thunder in about 5 s so its
+    /// flash comes now and then, and the slow sway of clouds, fog, sun and stars in about 14 s.
+    /// </summary>
+    public static float DriftStep(SkyIcon icon) => icon == SkyIcon.Thunder ? 0.015f : Falls(icon) ? 0.03f : 0.006f;
 
     /// <summary>Colour of the air quality bands, from green (good) to purple (extremely poor).</summary>
     public static Color AirColor(AirCategory c) => c switch

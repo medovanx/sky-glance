@@ -43,7 +43,7 @@ public sealed class AppSettings
     public bool RainAlerts { get; set; } = true;
     /// <summary>A small card with the next hours when the mouse rests on the widget.</summary>
     public bool HoverCard { get; set; } = true;
-    /// <summary>Rain and snow drift in the widget's weather picture. Off by default: it redraws about ten times a second.</summary>
+    /// <summary>Animate the widget's weather picture (rain falls, clouds drift, the sun glows). Off by default: it redraws twelve times a second.</summary>
     public bool AnimateIcon { get; set; }
     /// <summary>Times on a 12-hour clock with AM and PM; by default the same as the Windows clock.</summary>
     public bool Clock12 { get; set; } = SystemClock12();
