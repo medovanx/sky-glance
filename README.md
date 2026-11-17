@@ -63,6 +63,10 @@ Weather alerts are not included: Open-Meteo, the free keyless service Sky Glance
     <td align="center"><img src="docs/screenshots/calendar-en.png" width="440"><br><sub>Weather on any date since 1940</sub></td>
     <td align="center"><img src="docs/screenshots/calendar-ar.png" width="440"><br><sub>Calendar in Arabic</sub></td>
   </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/widget-menu-en-dark.png" width="194"><br><sub>Right-click menu on the widget</sub></td>
+    <td align="center"><img src="docs/screenshots/settings-3-en.png" width="440"><br><sub>Updates from GitHub, checked against SHA-256</sub></td>
+  </tr>
 </table>
 
 All screenshots use a made-up forecast for a demo city.
