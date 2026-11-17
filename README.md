@@ -179,8 +179,8 @@ Developer switches:
 Versions follow [Semantic Versioning](https://semver.org/). Bump `<Version>` in `Directory.Build.props`, add the changes to [CHANGELOG.md](CHANGELOG.md), then tag and push:
 
 ```bash
-git tag v1.3.2
-git push origin v1.3.2
+git tag v1.4.0
+git push origin v1.4.0
 ```
 
 The [release workflow](.github/workflows/release.yml) runs the tests, builds the exe and publishes a GitHub Release, which running copies pick up automatically.
