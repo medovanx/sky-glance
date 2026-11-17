@@ -102,18 +102,34 @@ public sealed class AppSettings
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     const string RunName = "SkyGlance";
 
+    // Recent Windows 11 builds skip a Run entry that has no "enabled" mark in StartupApproved (the list Task
+    // Manager's Startup apps page edits), so turning it on writes both.
+    const string ApprovedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+
     public static bool StartWithWindows
     {
         get
         {
             using var k = Registry.CurrentUser.OpenSubKey(RunKey);
-            return k?.GetValue(RunName) is string;
+            if (k?.GetValue(RunName) is not string) return false;
+            // Turned off in Task Manager: the first byte of the mark is odd (03), on is even (02).
+            using var a = Registry.CurrentUser.OpenSubKey(ApprovedKey);
+            return a?.GetValue(RunName) is not byte[] mark || mark.Length == 0 || (mark[0] & 1) == 0;
         }
         set
         {
             using var k = Registry.CurrentUser.CreateSubKey(RunKey);
-            if (value) k.SetValue(RunName, $"\"{Environment.ProcessPath}\"");
-            else k.DeleteValue(RunName, false);
+            using var a = Registry.CurrentUser.CreateSubKey(ApprovedKey);
+            if (value)
+            {
+                k.SetValue(RunName, $"\"{Environment.ProcessPath}\"");
+                a.SetValue(RunName, new byte[] { 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, RegistryValueKind.Binary);
+            }
+            else
+            {
+                k.DeleteValue(RunName, false);
+                a.DeleteValue(RunName, false);
+            }
         }
     }
 }

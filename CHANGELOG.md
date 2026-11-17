@@ -3,6 +3,11 @@
 All notable changes to Sky Glance are listed here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.4.3] - 2026-11-18
+
+### Fixed
+- Start with Windows works again on recent Windows 11 builds, which skip a startup entry unless it is also marked as enabled in Windows' startup list. Turning it on now writes that mark too.
+
 ## [1.4.2] - 2026-11-17
 
 ### Fixed
@@ -105,6 +110,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Settings > Updates links to the project page on GitHub.
 - Auto-updates from GitHub Releases with SHA-256 verification.
 
+[1.4.3]: https://github.com/medovanx/sky-glance/releases/tag/v1.4.3
 [1.1.0]: https://github.com/medovanx/sky-glance/releases/tag/v1.1.0
 [1.0.1]: https://github.com/medovanx/sky-glance/releases/tag/v1.0.1
 [1.0.0]: https://github.com/medovanx/sky-glance/releases/tag/v1.0.0
