@@ -3,6 +3,12 @@
 All notable changes to Sky Glance are listed here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-11-17
+
+### Changed
+- Checking for and installing an update now shows a progress bar where Check now was, with the download percentage and size, then the check of the download and the restart.
+- The Updates page has GitHub page and Release notes buttons in place of the plain link.
+
 ## [1.1.0] - 2026-11-17
 
 ### Changed
