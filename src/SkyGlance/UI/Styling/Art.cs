@@ -59,6 +59,31 @@ static class Art
         g.SmoothingMode = old;
     }
 
+    /// <summary>
+    /// The widget's background colours, one pair per kind of weather so each reads at a glance: blue for a clear
+    /// sky, slate for rain, icy blue for snow, misty grey for fog, violet for thunder. Night is deeper and bluer.
+    /// All are dark enough for white text.
+    /// </summary>
+    public static (Color top, Color bottom) SceneColors(SkyIcon icon, bool day)
+    {
+        (Color a, Color b) c = icon switch
+        {
+            SkyIcon.Clear => (SkyLight, SkyDark),
+            SkyIcon.PartlyCloudy => (Color.FromArgb(92, 148, 210), Color.FromArgb(44, 92, 160)),
+            SkyIcon.Cloudy => (Color.FromArgb(118, 136, 160), Color.FromArgb(66, 82, 108)),
+            SkyIcon.Fog => (Color.FromArgb(132, 140, 152), Color.FromArgb(86, 94, 108)),
+            SkyIcon.Drizzle => (Color.FromArgb(92, 122, 156), Color.FromArgb(52, 74, 104)),
+            SkyIcon.Rain => (Color.FromArgb(70, 92, 124), Color.FromArgb(34, 50, 78)),
+            SkyIcon.Sleet => (Color.FromArgb(84, 112, 146), Color.FromArgb(44, 66, 100)),
+            SkyIcon.Snow => (Color.FromArgb(126, 158, 196), Color.FromArgb(74, 104, 146)),
+            SkyIcon.Thunder => (Color.FromArgb(84, 70, 124), Color.FromArgb(32, 24, 56)),
+            _ => (SkyLight, SkyDark),
+        };
+        if (day) return c;
+        static Color Night(Color x) => Color.FromArgb(x.R * 40 / 100, x.G * 44 / 100, Math.Min(255, x.B * 58 / 100 + 18));
+        return (Night(c.a), Night(c.b));
+    }
+
     public static GraphicsPath RoundRect(RectangleF r, float rad)
     {
         var p = new GraphicsPath();
@@ -338,9 +363,12 @@ static class Art
         g.SmoothingMode = SmoothingMode.AntiAlias;
         static float Hash(int i, int k) { uint h = (uint)(i * 374761393 + k * 668265263); h = (h ^ (h >> 13)) * 1274126177; return (h ^ (h >> 16)) / (float)uint.MaxValue; }
         float w = area.Width, h = area.Height;
+        // The counts are for the flyout's header (380 by 166); a smaller area such as the widget gets fewer.
+        float share = Math.Min(1f, w * h / (380f * 166f * s * s));
+        int Count(int full) => Math.Max(full / 5, (int)(full * share));
         if (icon is SkyIcon.Rain or SkyIcon.Drizzle or SkyIcon.Thunder or SkyIcon.Sleet)
         {
-            int count = icon == SkyIcon.Drizzle ? 26 : 44;
+            int count = Count(icon == SkyIcon.Drizzle ? 26 : 44);
             float len = (icon == SkyIcon.Drizzle ? 8 : 14) * s, speed = (icon == SkyIcon.Drizzle ? 120 : 260) * s;
             using var pen = new Pen(Color.FromArgb(icon == SkyIcon.Drizzle ? 50 : 70, 220, 235, 255), Math.Max(1f, 1.2f * s)) { StartCap = LineCap.Round, EndCap = LineCap.Round };
             for (int i = 0; i < count; i++)
@@ -352,7 +380,7 @@ static class Art
         }
         if (icon is SkyIcon.Snow or SkyIcon.Sleet)
         {
-            int count = icon == SkyIcon.Snow ? 34 : 14;
+            int count = Count(icon == SkyIcon.Snow ? 34 : 14);
             for (int i = 0; i < count; i++)
             {
                 float r = (1.2f + 1.6f * Hash(i, 4)) * s, travel = h + r * 4;
@@ -364,7 +392,7 @@ static class Art
         }
         if (!day && icon is SkyIcon.Clear or SkyIcon.PartlyCloudy)
         {
-            for (int i = 0; i < 26; i++)
+            for (int i = 0, stars = Count(26); i < stars; i++)
             {
                 float k = (1 + MathF.Sin(seconds * (1.2f + Hash(i, 8)) + i * 2.1f)) / 2;
                 float r = (0.8f + 1.2f * Hash(i, 9)) * s * (0.6f + 0.6f * k);

@@ -30,6 +30,7 @@ with Celsius or Fahrenheit and five wind units. English and Arabic. No account, 
 - **Lives in the taskbar.** A weather picture, the temperature, today's high and low and the condition, embedded next to the notification area or at the left end. It takes the nearest free spot on either side, so it never covers other taskbar tools such as Data Tide, Salaty Reminder or TrafficMonitor, hides with the taskbar in fullscreen apps and comes back after Explorer restarts.
 - **No tray icon.** Everything lives in the widget: right-click it for every command, and run the exe again to open the forecast. Update messages arrive as Windows notifications.
 - **Forecast flyout.** Click the widget for the sky right now (with "feels like", today's high and low, and how much warmer or colder it is than this time yesterday), humidity, wind and direction, UV index, rain chance, sunrise and sunset, a 24-hour temperature chart with rain chances, and a 7-day forecast with each day's range.
+- **A sky for every weather.** The widget's background follows the weather: blue with a warm glow on a sunny day, deep blue with stars at night, slate with rain streaks, icy blue with snowflakes, misty grey for fog and violet for a storm. It can be turned off for the plain style.
 - **Hover card.** Rest the mouse on the widget for the next six hours, the wind and the air, without opening anything.
 - **Rain alerts.** A notification when rain is about to start or stop where you are, from Open-Meteo's 15-minute forecast (native in Europe and North America, worked out from the hourly model elsewhere).
 - **Air quality and pollen.** The European air quality index with its band, and the pollen level in Europe. A coloured dot on the widget when the air turns poor.
@@ -77,6 +78,8 @@ Weather alerts are not included: Open-Meteo, the free keyless service Sky Glance
     <td align="center"><img src="docs/screenshots/settings-3-en.png" width="440"><br><sub>Updates from GitHub, checked against SHA-256</sub></td>
   </tr>
 </table>
+
+<p align="center"><img src="docs/screenshots/widget-scenes.png" width="700"><br><sub>The widget's background for each kind of weather, by day and night, on a dark and a light taskbar</sub></p>
 
 All screenshots use a made-up forecast for a demo city.
 
@@ -208,6 +211,7 @@ The [release workflow](.github/workflows/release.yml) runs the tests, builds the
 - تنبيه عندما يوشك المطر أن يبدأ أو يتوقف، وبطاقة بالساعات القادمة عند الإشارة إلى الأداة
 - جودة الهواء وحبوب اللقاح، وطور القمر والساعة الذهبية، والمقارنة بطقس أمس
 - لا تغطي الأدوات الأخرى في شريط المهام مثل داتا تايد وصلاتي
+- خلفية للأداة تتبع الطقس: سماء زرقاء مشمسة، ونجوم في الليل، ومطر وثلج وضباب وعاصفة
 - واجهة عربية كاملة من اليمين إلى اليسار، ووضع داكن وفاتح يتبع ويندوز
 - بلا حساب ولا مفتاح API، وتحديث تلقائي آمن من GitHub
 

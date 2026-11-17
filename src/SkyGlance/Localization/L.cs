@@ -197,6 +197,7 @@ public static class L
 
         // The calendar's day.
         ["HourByHour"] = ("Hour by hour", "ساعة بساعة"),
+        ["WidgetScene"] = ("Weather background behind the widget", "خلفية حسب الطقس خلف الأداة"),
         ["Clock12"] = ("12-hour clock (AM and PM)", "نظام 12 ساعة (ص و م)"),
 
         ["Compass0"] = ("N", "ش"), ["Compass1"] = ("NE", "ش ق"), ["Compass2"] = ("E", "ق"), ["Compass3"] = ("SE", "ج ق"),

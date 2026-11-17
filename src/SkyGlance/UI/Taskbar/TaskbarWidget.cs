@@ -53,8 +53,8 @@ sealed class TaskbarWidget : NativeWindow
 
     // Extras: a dot for poor air, and rain or snow drifting in the picture.
     Color? badge;
-    bool animate;
-    float drift;
+    bool animate, scene;
+    float drift, seconds;
 
     /// <summary>Shows or hides the update progress line. A null fraction slides, for work with no known end.</summary>
     public void SetProgress(bool isBusy, double? done)
@@ -67,10 +67,11 @@ sealed class TaskbarWidget : NativeWindow
 
     /// <param name="airDot">Colour of a dot by the picture when the air is poor, or null for none.</param>
     /// <param name="animated">Animate the picture: rain and snow fall, clouds and fog drift, the sun glows, stars twinkle.</param>
-    public void SetExtras(Color? airDot, bool animated)
+    /// <param name="weatherScene">Paint a small sky for the weather behind the widget instead of the plain pill.</param>
+    public void SetExtras(Color? airDot, bool animated, bool weatherScene)
     {
-        if (airDot == badge && animated == animate) return;
-        badge = airDot; animate = animated;
+        if (airDot == badge && animated == animate && weatherScene == scene) return;
+        badge = airDot; animate = animated; scene = weatherScene;
         SyncAnim();
         if (Alive) Render();
     }
@@ -87,7 +88,12 @@ sealed class TaskbarWidget : NativeWindow
             {
                 if (busy && fraction == null) phase = (phase + 0.02f) % 1f;
                 // While the progress line slides (30 frames a second) the picture steps at the same speed per second.
-                if (Drifting) drift = (drift + Art.DriftStep(icon) * (busy && fraction == null ? 33f / 83f : 1f)) % 1f;
+                if (Drifting)
+                {
+                    float share = busy && fraction == null ? 33f / 83f : 1f;
+                    drift = (drift + Art.DriftStep(icon) * share) % 1f;
+                    seconds += 0.083f * share;
+                }
                 if (Alive) Render();
             };
         }
@@ -301,7 +307,7 @@ sealed class TaskbarWidget : NativeWindow
     {
         if (!GetWindowRect(tray, out var tr)) return;
         using var bmp = Paint(temp, condition, showHiLo ? hiLo : null, icon, day, showCondition, hover, rtl, SystemDark(), Scale, tr.Height,
-                              busy ? new Progress(fraction, phase) : null, badge, Drifting ? drift : -1);
+                              busy ? new Progress(fraction, phase) : null, badge, Drifting ? drift : -1, scene, Drifting ? seconds : 0);
         size = bmp.Size;
         var screen = GetDC(IntPtr.Zero);
         var mem = CreateCompatibleDC(screen);
@@ -333,7 +339,7 @@ sealed class TaskbarWidget : NativeWindow
     /// <param name="airDot">Colour of the poor-air dot beside the picture, or null.</param>
     /// <param name="drift">Where falling rain or snow is in the animation (0 to 1), or negative for the still picture.</param>
     public static Bitmap Paint(string temp, string condition, string? highLow, SkyIcon icon, bool isDay, bool withCondition, bool hover, bool rtl, bool dark, float s, int h,
-                               Progress? progress = null, Color? airDot = null, float drift = -1)
+                               Progress? progress = null, Color? airDot = null, float drift = -1, bool scene = false, float seconds = 0)
     {
         // Same sizes as the sibling widgets (Data Tide 13.5 px Semibold, Salaty Reminder 12 px), so they read as one family.
         using var fTemp = new Font("Segoe UI Semibold", (withCondition ? 13.5f : 15f) * s, GraphicsUnit.Pixel);
@@ -360,6 +366,38 @@ sealed class TaskbarWidget : NativeWindow
             g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit; // grayscale AA: correct on per-pixel alpha
             g.Clear(Color.FromArgb(1, 0, 0, 0)); // alpha 1 keeps the whole box clickable
 
+            if (scene)
+            {
+                // A small sky for the weather: its colours, a faint drifting cloud pattern, and the weather on top
+                // (a warm glow behind the sun, stars at night, rain streaks, snowflakes). Lighter on hover.
+                var box = new RectangleF(1, 4 * s, w - 2, h - 8 * s);
+                using var path = Art.RoundRect(box, 6 * s);
+                var (c1, c2) = Art.SceneColors(icon, isDay);
+                using (var bg = new LinearGradientBrush(box, Color.FromArgb(240, c1), Color.FromArgb(240, c2), LinearGradientMode.ForwardDiagonal))
+                    g.FillPath(bg, path);
+                var st = g.Save();
+                g.SetClip(path);
+                var area = Rectangle.Round(box);
+                if (isDay && icon is SkyIcon.Clear or SkyIcon.PartlyCloudy)
+                {
+                    float gx = rtl ? w - pad - iconS / 2f : pad + iconS / 2f, gy = h / 2f, gr = h * 0.9f;
+                    using var glow = new GraphicsPath();
+                    glow.AddEllipse(gx - gr, gy - gr, gr * 2, gr * 2);
+                    using var gb = new PathGradientBrush(glow) { CenterColor = Color.FromArgb(110, 255, 214, 120), SurroundColors = [Color.FromArgb(0, 255, 214, 120)] };
+                    g.FillPath(gb, glow);
+                }
+                Art.CloudPattern(g, area, 26 * s, Color.FromArgb(16, 255, 255, 255), seconds * 4 * s);
+                Art.HeaderWeather(g, area, icon, isDay, seconds, s);
+                if (icon == SkyIcon.Fog)
+                    using (var mist = new SolidBrush(Color.FromArgb(40, 230, 236, 244)))
+                        for (int i = 0; i < 3; i++)
+                            g.FillRectangle(mist, area.X, area.Y + area.Height * (0.25f + 0.25f * i) + MathF.Sin(seconds * 0.8f + i) * 2 * s, area.Width, 3 * s);
+                if (hover) using (var lift = new SolidBrush(Color.FromArgb(28, 255, 255, 255))) g.FillRectangle(lift, area);
+                g.Restore(st);
+                using var edge = new Pen(Color.FromArgb(dark ? 60 : 50, 255, 255, 255), Math.Max(1f, s));
+                g.DrawPath(edge, path);
+            }
+            else
             // Soft sky-blue pill like the other widgets, brighter on hover.
             {
                 var box = new RectangleF(1, 4 * s, w - 2, h - 8 * s);
@@ -384,8 +422,9 @@ sealed class TaskbarWidget : NativeWindow
                 g.FillEllipse(dot, cx - r, cy - r, 2 * r, 2 * r);
             }
 
-            Color fg = dark ? Color.White : Color.FromArgb(20, 20, 20);
-            Color dim = dark ? Color.FromArgb(210, 220, 228) : Color.FromArgb(70, 76, 84);
+            // On a weather background the text is always white, like the flyout's header.
+            Color fg = scene || dark ? Color.White : Color.FromArgb(20, 20, 20);
+            Color dim = scene ? Color.FromArgb(225, 234, 244) : dark ? Color.FromArgb(210, 220, 228) : Color.FromArgb(70, 76, 84);
             int textX = rtl ? pad : pad + iconS + gap;
             using var sf = new StringFormat
             {

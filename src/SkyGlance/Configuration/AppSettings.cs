@@ -37,6 +37,8 @@ public sealed class AppSettings
     public bool ShowAirQuality { get; set; } = true;
     /// <summary>Show the moon phase and the next golden hour in the flyout.</summary>
     public bool ShowSky { get; set; } = true;
+    /// <summary>A small sky for the current weather behind the widget, instead of the plain pill.</summary>
+    public bool WidgetScene { get; set; } = true;
     /// <summary>A coloured dot on the widget when the air is poor or worse.</summary>
     public bool AirDot { get; set; } = true;
     /// <summary>A notification when rain is about to start or stop at my location.</summary>

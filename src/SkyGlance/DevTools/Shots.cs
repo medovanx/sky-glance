@@ -107,6 +107,8 @@ static class Shots
         }
         Icons(Path.Combine(dir, "icons.png"));
         AnimationFrames(Path.Combine(dir, "animation-frames.png"));
+        L.Ar = false;
+        WidgetScenes(Path.Combine(dir, "widget-scenes.png"));
         Menu(Path.Combine(dir, "menu-dark.png"), true);
         Menu(Path.Combine(dir, "menu-light.png"), false);
         return 0;
@@ -118,7 +120,7 @@ static class Shots
     {
         const float s = 1.5f;
         int h = (int)(48 * s);
-        using var widget = TaskbarWidget.Paint(temp, condition, highLow, icon, day, true, false, rtl, true, s, h, progress, airDot, drift);
+        using var widget = TaskbarWidget.Paint(temp, condition, highLow, icon, day, true, false, rtl, true, s, h, progress, airDot, drift, scene: true);
         using var strip = new Bitmap(widget.Width + (int)(40 * s), h);
         using (var g = Graphics.FromImage(strip))
         {
@@ -141,6 +143,33 @@ static class Shots
             for (int i = 0; i < all.Length; i++)
                 Art.Weather(g, new RectangleF(12 + i * (n + 12), 12 + row * (n + 12), n, n), all[i], row % 2 == 0);
         bmp.Save(path, ImageFormat.Png);
+    }
+
+    /// <summary>The widget's weather background for each kind of weather, by day and night, on a dark and a light taskbar.</summary>
+    static void WidgetScenes(string path)
+    {
+        int[] codes = [0, 2, 3, 45, 53, 63, 66, 73, 95];
+        const float s = 1.25f;
+        int h = (int)(48 * s);
+        var cells = new List<(Bitmap bmp, bool darkBar)>();
+        foreach (bool darkBar in new[] { true, false })
+            foreach (int code in codes)
+                foreach (bool day in new[] { true, false })
+                    cells.Add((TaskbarWidget.Paint("21°", L.Condition(code), "↑24° ↓14°", WeatherCode.Icon(code), day, true, false, false, darkBar, s, h, scene: true), darkBar));
+        int cw = cells.Max(c => c.bmp.Width) + 12, rows = codes.Length * 2;
+        using var sheet = new Bitmap(cw * 2 * 2 + 12, rows / 2 * h + 12);
+        using (var g = Graphics.FromImage(sheet))
+        {
+            g.Clear(Color.FromArgb(28, 28, 28));
+            g.FillRectangle(new SolidBrush(Color.FromArgb(238, 241, 245)), cw * 2 + 6, 0, sheet.Width, sheet.Height);
+            for (int i = 0; i < cells.Count; i++)
+            {
+                int bar = i / (codes.Length * 2), k = i % (codes.Length * 2), row = k / 2, col = k % 2;
+                g.DrawImage(cells[i].bmp, 6 + bar * (cw * 2 + 6) + col * cw, 6 + row * h);
+                cells[i].bmp.Dispose();
+            }
+        }
+        sheet.Save(path, ImageFormat.Png);
     }
 
     /// <summary>Frames from each picture's animation (day and night, on the dark taskbar colour), for a visual check.</summary>

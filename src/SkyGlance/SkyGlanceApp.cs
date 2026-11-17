@@ -327,7 +327,7 @@ sealed class SkyGlanceApp : ApplicationContext
         string t = now is { } n ? UnitFormat.Temperature(n.tempC, S.Temperature) : "--";
         string cond = now is { } m ? L.Condition(m.code) : !S.HasLocation ? L.T("Location") : "";
         widget.SetContent(t, cond, S.ShowHighLow ? HighLow() ?? "" : null, now is { } k ? WeatherCode.Icon(k.code) : SkyIcon.Cloudy, now?.day ?? true, S.ShowCondition, L.Ar);
-        widget.SetExtras(S.AirDot && Air?.Category is { } c && c >= AirCategory.Poor ? Art.AirColor(c) : null, S.AnimateIcon);
+        widget.SetExtras(S.AirDot && Air?.Category is { } c && c >= AirCategory.Poor ? Art.AirColor(c) : null, S.AnimateIcon, S.WidgetScene);
     }
 
     // ---------- windows ----------
