@@ -3,7 +3,7 @@
 All notable changes to Sky Glance are listed here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.3.1] - 2026-11-17
 
 ### Changed
 - The widget animation covers every kind of weather: clouds drift, fog slides, the sun's glow breathes, stars twinkle by the moon and lightning flashes now and then, as well as falling rain and snow. Still off by default.
