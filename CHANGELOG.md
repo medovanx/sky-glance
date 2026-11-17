@@ -3,7 +3,7 @@
 All notable changes to Sky Glance are listed here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.3.0] - 2026-11-17
 
 ### Added
 - Rain alerts: a notification when rain is about to start or stop at your location, from Open-Meteo's 15-minute forecast. It names the place and the time, and one shower raises one alert.
