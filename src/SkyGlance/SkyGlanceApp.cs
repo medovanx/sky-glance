@@ -510,7 +510,7 @@ sealed class SkyGlanceApp : ApplicationContext
         }
 
         // Which app and version this is, as a quiet line on top.
-        menu.Items.Add(new ToolStripMenuItem($"{L.T("AppName")}  {L.Ltr(Updater.CurrentText)}") { Enabled = false, Tag = new MenuRenderer.MenuGlyph("", Picture: MenuIcon) });
+        menu.Items.Add(new ToolStripMenuItem($"{L.T("AppName")} {L.Ltr("v" + Updater.CurrentText)}") { Enabled = false, Tag = new MenuRenderer.MenuGlyph("", Picture: MenuIcon) });
         menu.Items.Add(new ToolStripSeparator());
 
         var show = Item(L.T("ShowWeather"), Art.IconWeather, ShowFlyout);
