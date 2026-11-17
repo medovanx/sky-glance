@@ -119,6 +119,8 @@ sealed class TaskbarWidget : NativeWindow
         }
         if (Handle == IntPtr.Zero)
         {
+            // A new window starts with the mouse outside it, whatever the old one last saw.
+            if (hover) { hover = false; HoverChanged?.Invoke(false); }
             tray = t;
             lastPos = new(int.MinValue, 0);
             CreateHandle(new CreateParams
@@ -132,6 +134,15 @@ sealed class TaskbarWidget : NativeWindow
             Render();
         }
         Place();
+
+        // If Windows never said the mouse left (the window was moved or rebuilt under it), notice it here,
+        // or the widget would think the mouse is still over it and never react to the next visit.
+        if (hover && ScreenBounds is { } b && !b.Contains(Cursor.Position))
+        {
+            hover = false;
+            HoverChanged?.Invoke(false);
+            Render();
+        }
     }
 
     /// <param name="highLow">Today's high and low (such as "↑22° ↓13°"), or null to leave them out.</param>

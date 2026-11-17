@@ -3,6 +3,11 @@
 All notable changes to Sky Glance are listed here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- The hover card could stop appearing after the widget was rebuilt (an Explorer restart or a display change), because the widget still thought the mouse was over it.
+
 ## [1.4.1] - 2026-11-17
 
 ### Changed
