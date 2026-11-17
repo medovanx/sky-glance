@@ -45,6 +45,22 @@ sealed class TaskbarWidget : NativeWindow
         if (Alive) Place();
     }
 
+    // Update progress drawn along the bottom of the pill: busy, the fraction done (null when unknown), the slide phase.
+    bool busy;
+    double? fraction;
+    float phase;
+    readonly System.Windows.Forms.Timer anim = new() { Interval = 33 };
+
+    /// <summary>Shows or hides the update progress line. A null fraction slides, for work with no known end.</summary>
+    public void SetProgress(bool isBusy, double? done)
+    {
+        if (isBusy == busy && done == fraction) return;
+        busy = isBusy; fraction = done;
+        if (anim.Tag == null) { anim.Tag = true; anim.Tick += (_, _) => { phase = (phase + 0.02f) % 1f; if (Alive) Render(); }; }
+        anim.Enabled = busy && fraction == null;
+        if (Alive) Render();
+    }
+
     public bool Alive => Handle != IntPtr.Zero && IsWindow(Handle);
 
     public Rectangle? ScreenBounds => Alive && GetWindowRect(Handle, out var r)
@@ -247,7 +263,8 @@ sealed class TaskbarWidget : NativeWindow
     void Render()
     {
         if (!GetWindowRect(tray, out var tr)) return;
-        using var bmp = Paint(temp, condition, showHiLo ? hiLo : null, icon, day, showCondition, hover, rtl, SystemDark(), Scale, tr.Height);
+        using var bmp = Paint(temp, condition, showHiLo ? hiLo : null, icon, day, showCondition, hover, rtl, SystemDark(), Scale, tr.Height,
+                              busy ? new Progress(fraction, phase) : null);
         size = bmp.Size;
         var screen = GetDC(IntPtr.Zero);
         var mem = CreateCompatibleDC(screen);
@@ -273,7 +290,11 @@ sealed class TaskbarWidget : NativeWindow
     /// Draws the widget: the weather picture beside the temperature and today's high and low, with the condition below.
     /// The width depends only on the scale and the settings, never on the values, so it doesn't jitter as they change.
     /// </summary>
-    public static Bitmap Paint(string temp, string condition, string? highLow, SkyIcon icon, bool isDay, bool withCondition, bool hover, bool rtl, bool dark, float s, int h)
+    /// <summary>An update in progress: the fraction done (null when unknown) and where the sliding segment is.</summary>
+    public readonly record struct Progress(double? Fraction, float Phase);
+
+    public static Bitmap Paint(string temp, string condition, string? highLow, SkyIcon icon, bool isDay, bool withCondition, bool hover, bool rtl, bool dark, float s, int h,
+                               Progress? progress = null)
     {
         // Same sizes as the sibling widgets (Data Tide 13.5 px Semibold, Salaty Reminder 12 px), so they read as one family.
         using var fTemp = new Font("Segoe UI Semibold", (withCondition ? 13.5f : 15f) * s, GraphicsUnit.Pixel);
@@ -344,6 +365,27 @@ sealed class TaskbarWidget : NativeWindow
             }
             if (withCondition && condition.Length > 0)
                 g.DrawString(condition, fCond, bd, new RectangleF(textX, y1 + tH - 4 * s, textW, cH), sf);
+
+            if (progress is { } p)
+            {
+                // A slim line inside the bottom of the pill, like the bar on the Updates page.
+                float lh = Math.Max(2f, 2f * s), inset = 7 * s;
+                var track = new RectangleF(inset, h - 4 * s - lh - 1.5f * s, w - 2 * inset, lh);
+                Color accent = new Theme(dark).Accent;
+                Art.FillRound(g, track, lh / 2, Color.FromArgb(dark ? 50 : 40, dark ? Color.White : Color.Black));
+                RectangleF fill;
+                if (p.Fraction is { } v)
+                    fill = new RectangleF(track.X, track.Y, Math.Max(lh, track.Width * (float)Math.Clamp(v, 0, 1)), lh);
+                else
+                {
+                    float seg = track.Width / 3, t = (1 - MathF.Cos(p.Phase * MathF.PI)) / 2;
+                    float x = track.X - seg + (track.Width + seg) * t;
+                    float l = Math.Max(track.X, x), r = Math.Min(track.Right, x + seg);
+                    fill = new RectangleF(l, track.Y, Math.Max(0, r - l), lh);
+                }
+                if (rtl) fill.X = track.Right - (fill.X - track.X) - fill.Width;
+                if (fill.Width >= 1) Art.FillRound(g, fill, lh / 2, accent);
+            }
         }
         return bmp;
     }

@@ -335,6 +335,7 @@ sealed class SkyGlanceApp : ApplicationContext
     void SetUpdate(bool busy, double? fraction, string status)
     {
         UpdateBusy = busy; UpdateFraction = fraction; UpdateStatus = status;
+        widget.SetProgress(busy, fraction); // seen even with no window open, as when checking from the menu
         UpdateChanged?.Invoke();
     }
 
@@ -451,11 +452,13 @@ sealed class SkyGlanceApp : ApplicationContext
 
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(L.T("Settings"), null, (_, _) => ShowSettings());
-        menu.Items.Add(L.T("CheckForUpdates"), null, async (_, _) =>
+        // While an update is being checked or installed, the item says where it is and can't be clicked again.
+        var check = menu.Items.Add(UpdateBusy ? UpdateStatus : L.T("CheckForUpdates"), null, async (_, _) =>
         {
             var msg = await CheckForUpdatesAsync(userInitiated: true);
             if (!installing) Toast.Show(L.T("AppName"), msg);
         });
+        check.Enabled = !UpdateBusy;
         var startup = new ToolStripMenuItem(L.T("StartWithWindows")) { Checked = AppSettings.StartWithWindows };
         startup.Click += (_, _) => { try { AppSettings.StartWithWindows = !startup.Checked; } catch { } };
         menu.Items.Add(startup);

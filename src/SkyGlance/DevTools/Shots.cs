@@ -23,6 +23,8 @@ static class Shots
 
             WidgetStrip(Path.Combine(dir, $"widget-{lang}.png"), UnitFormat.Temperature(c.TemperatureC, TemperatureUnit.Celsius),
                 L.Condition(c.Code), app.HighLow(), WeatherCode.Icon(c.Code), c.IsDay, lang == "ar");
+            WidgetStrip(Path.Combine(dir, $"widget-updating-{lang}.png"), UnitFormat.Temperature(c.TemperatureC, TemperatureUnit.Celsius),
+                L.Condition(c.Code), app.HighLow(), WeatherCode.Icon(c.Code), c.IsDay, lang == "ar", new(0.45, 0));
 
             foreach (var dark in new[] { true, false })
             {
@@ -57,11 +59,11 @@ static class Shots
     }
 
     /// <summary>The widget on a dark taskbar-coloured strip, at 150% scale for a crisp README image.</summary>
-    static void WidgetStrip(string path, string temp, string condition, string? highLow, SkyIcon icon, bool day, bool rtl)
+    static void WidgetStrip(string path, string temp, string condition, string? highLow, SkyIcon icon, bool day, bool rtl, TaskbarWidget.Progress? progress = null)
     {
         const float s = 1.5f;
         int h = (int)(48 * s);
-        using var widget = TaskbarWidget.Paint(temp, condition, highLow, icon, day, true, false, rtl, true, s, h);
+        using var widget = TaskbarWidget.Paint(temp, condition, highLow, icon, day, true, false, rtl, true, s, h, progress);
         using var strip = new Bitmap(widget.Width + (int)(40 * s), h);
         using (var g = Graphics.FromImage(strip))
         {
