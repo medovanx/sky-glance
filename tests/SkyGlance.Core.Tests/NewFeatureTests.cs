@@ -151,6 +151,15 @@ public class SkyTests
     }
 
     [Fact]
+    public void SunsetMatchesOpenMeteoWithinAFewMinutes()
+    {
+        var f = OpenMeteo.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "berlin-v2.json")), DateTime.UtcNow);
+        var day = f.Daily.First(d => d.Date == new DateOnly(2026, 11, 17));
+        var calc = Sun.Sunset(day.Date, f.Latitude, f.Longitude, f.UtcOffsetSeconds)!.Value;
+        Assert.InRange((calc - day.Sunset!.Value).TotalMinutes, -3, 3);
+    }
+
+    [Fact]
     public void PolarNightHasNoGoldenHourAtTheNorthPole() =>
         Assert.Empty(Sun.GoldenHours(new DateOnly(2026, 12, 21), 89.9, 0, 0));
 }

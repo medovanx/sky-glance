@@ -9,6 +9,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - A sky for every weather behind the widget: blue with a warm glow on a sunny day, deep blue with stars at night, slate with rain streaks, icy blue with snowflakes, misty grey for fog and violet for a storm, with white text. With animation on, the rain, snow and stars move and the clouds drift. On by default; Settings can bring back the plain style.
 - The sunrise and sunset tiles in the flyout have a picture: the sun half over the horizon, with an arrow up or down.
 
+### Fixed
+- The golden hour lines up with the forecast's sunset, so the two tiles always agree.
+
 ## [1.3.2] - 2026-11-17
 
 ### Changed

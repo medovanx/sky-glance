@@ -70,6 +70,24 @@ public static class Sun
         return list;
     }
 
+    /// <summary>
+    /// Sunset as these equations see it (the sun's centre 0.833° below the horizon, allowing for refraction),
+    /// found minute by minute; null when the sun doesn't set that day.
+    /// </summary>
+    public static DateTime? Sunset(DateOnly day, double latitude, double longitude, int utcOffsetSeconds)
+    {
+        var start = day.ToDateTime(TimeOnly.MinValue);
+        double prev = double.NaN;
+        for (int i = 0; i <= 1440; i++)
+        {
+            var local = start.AddMinutes(i);
+            double el = Elevation(local.AddSeconds(-utcOffsetSeconds), latitude, longitude);
+            if (!double.IsNaN(prev) && prev >= -0.833 && el < -0.833) return local;
+            prev = el;
+        }
+        return null;
+    }
+
     /// <summary>The golden hour going on now or coming next, today or tomorrow; null where there is none (polar day or night).</summary>
     public static GoldenHour? Next(DateTime localNow, double latitude, double longitude, int utcOffsetSeconds)
     {

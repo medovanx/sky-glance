@@ -500,7 +500,15 @@ sealed class WeatherFlyout : Form
             tiles.Add((L.T("Moon" + Moon.Phase(utc)), [UnitFormat.Percent((int)Math.Round(lit * 100))],
                 (gr, box) => Art.MoonPicture(gr, box, lit, litOnRight, t.Dark ? Color.FromArgb(70, 76, 90) : Color.FromArgb(200, 206, 216))));
             // The golden hour going on now (until when) or the next one.
-            var golden = SkyGlance.Core.Sky.Sun.Next(localNow, lat, lon, f.UtcOffsetSeconds);
+            // Line the golden hours up with the forecast's own sunset, so the two tiles always agree (they differ
+            // by a minute or so for real data, more when the clock is made up for screenshots), then take the
+            // one going on now or coming next.
+            var day0 = DateOnly.FromDateTime(localNow);
+            var shift = today?.Sunset is { } fs && SkyGlance.Core.Sky.Sun.Sunset(today.Date, lat, lon, f.UtcOffsetSeconds) is { } cs ? fs - cs : TimeSpan.Zero;
+            var golden = SkyGlance.Core.Sky.Sun.GoldenHours(day0, lat, lon, f.UtcOffsetSeconds)
+                .Concat(SkyGlance.Core.Sky.Sun.GoldenHours(day0.AddDays(1), lat, lon, f.UtcOffsetSeconds))
+                .Select(gh => gh with { Start = gh.Start + shift, End = gh.End + shift })
+                .FirstOrDefault(gh => gh.End > localNow);
             string[] gv = golden == null ? [L.T("NoGolden")]
                 : golden.Start <= localNow ? [L.F("GoldenUntil", L.Clock(golden.End))]
                 : [L.Clock(golden.Start)];
