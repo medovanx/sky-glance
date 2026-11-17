@@ -3,6 +3,18 @@
 All notable changes to Sky Glance are listed here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Rain alerts: a notification when rain is about to start or stop at your location, from Open-Meteo's 15-minute forecast. It names the place and the time, and one shower raises one alert.
+- A hover card: rest the mouse on the widget for the next six hours, the wind and the air.
+- Air quality: the European air quality index and its band in the flyout, the pollen level in Europe, and a coloured dot on the widget when the air turns poor.
+- Moon and golden hour tiles: tonight's moon as it looks and how much of it is lit, and when the next golden hour starts, worked out on your PC.
+- Compared with yesterday: the flyout says how much warmer or colder it is than at this hour yesterday.
+- The calendar shows a day hour by hour, with rain chances for forecast days and the rain that fell for past ones.
+- Rain and snow can drift in the widget's picture (off by default).
+- A 12-hour clock with AM and PM, on by default when Windows uses one.
+
 ## [1.2.4] - 2026-11-17
 
 ### Fixed

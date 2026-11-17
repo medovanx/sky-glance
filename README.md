@@ -29,16 +29,21 @@ with Celsius or Fahrenheit and five wind units. English and Arabic. No account, 
 
 - **Lives in the taskbar.** A weather picture, the temperature, today's high and low and the condition, embedded next to the notification area or at the left end. It takes the nearest free spot on either side, so it never covers other taskbar tools such as Data Tide, Salaty Reminder or TrafficMonitor, hides with the taskbar in fullscreen apps and comes back after Explorer restarts.
 - **No tray icon.** Everything lives in the widget: right-click it for every command, and run the exe again to open the forecast. Update messages arrive as Windows notifications.
-- **Forecast flyout.** Click the widget for the sky right now (with "feels like", today's high and low), humidity, wind and direction, UV index, rain chance, sunrise and sunset, a 24-hour temperature chart with rain chances, and a 7-day forecast with each day's range.
+- **Forecast flyout.** Click the widget for the sky right now (with "feels like", today's high and low, and how much warmer or colder it is than this time yesterday), humidity, wind and direction, UV index, rain chance, sunrise and sunset, a 24-hour temperature chart with rain chances, and a 7-day forecast with each day's range.
+- **Hover card.** Rest the mouse on the widget for the next six hours, the wind and the air, without opening anything.
+- **Rain alerts.** A notification when rain is about to start or stop where you are, from Open-Meteo's 15-minute forecast (native in Europe and North America, worked out from the hourly model elsewhere).
+- **Air quality and pollen.** The European air quality index with its band, and the pollen level in Europe. A coloured dot on the widget when the air turns poor.
+- **Moon and golden hour.** Tonight's moon as it looks and how much of it is lit, and when the next golden hour starts, both worked out on your PC.
 - **Your location, automatically.** Uses Windows location when it's on, otherwise a rough location from your IP address, and checks again every few hours so a laptop follows you. Or search for any city in the world and keep it.
 - **Several cities.** Save as many cities as you like and switch between them by clicking the place name in the flyout, with the arrow keys, from the right-click menu, or by scrolling over the widget. Each city keeps its own cached forecast.
-- **Weather on any date.** A calendar window shows any day from 1 January 1940 up to 15 days ahead for any of your cities: high and low, precipitation, wind, sunrise and sunset, and the day in three-hour steps. Click a day in the 7-day forecast to open it there.
+- **Weather on any date.** A calendar window shows any day from 1 January 1940 up to 15 days ahead for any of your cities: high and low, precipitation, wind, sunrise and sunset, and the day hour by hour with its rain. Click a day in the 7-day forecast to open it there.
 - **Season.** The flyout shows the season at the place shown (it flips south of the equator) and how many days are left in it.
 - **Hottest and coldest right now.** The flyout shows the hottest and coldest of 32 places around the world that usually hold the records, from Death Valley and Kuwait to Vostok Station and Oymyakon.
 - **The time where the weather is.** A city in another time zone shows its own clock and its own "now".
 - **Units.** Celsius or Fahrenheit; km/h, m/s, mph, knots or Beaufort; millimetres or inches. Switch the temperature unit straight from the right-click menu.
 - **Works offline.** The last forecast is kept on disk and shown until the next one arrives; refreshes retry with a growing delay.
-- **English and Arabic.** Full right-to-left layout in Arabic. Light and dark theme follow Windows.
+- **Gentle animation.** Rain and snow can drift in the widget's picture (off by default).
+- **English and Arabic.** Full right-to-left layout in Arabic. Light and dark theme follow Windows. A 12-hour or 24-hour clock, like Windows by default.
 - **Auto-updates.** Checks GitHub Releases, verifies the download's SHA-256 and updates itself in place.
 - **Light and native.** One small Windows app, no Electron, no ads, no account.
 
@@ -64,7 +69,11 @@ Weather alerts are not included: Open-Meteo, the free keyless service Sky Glance
     <td align="center"><img src="docs/screenshots/calendar-ar.png" width="440"><br><sub>Calendar in Arabic</sub></td>
   </tr>
   <tr>
+    <td align="center"><img src="docs/screenshots/hover-en-dark.png" width="300"><br><sub>Hover card with rain about to start</sub></td>
     <td align="center"><img src="docs/screenshots/widget-menu-en-dark.png" width="194"><br><sub>Right-click menu on the widget</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/settings-0-en.png" width="440"><br><sub>Settings: hover card, animation, alerts and more</sub></td>
     <td align="center"><img src="docs/screenshots/settings-3-en.png" width="440"><br><sub>Updates from GitHub, checked against SHA-256</sub></td>
   </tr>
 </table>
@@ -85,8 +94,9 @@ Sky Glance has no account, analytics or tracking. It only goes online for these 
 
 | Service | When | What it sends |
 | --- | --- | --- |
-| [Open-Meteo Forecast](https://open-meteo.com/en/docs) | Every refresh (every 15 minutes by default), and for recent or coming dates in the calendar | The coordinates of the city shown or picked |
+| [Open-Meteo Forecast](https://open-meteo.com/en/docs) | Every refresh (every 15 minutes by default), and for recent or coming dates in the calendar. With rain alerts on and another city shown, your own location is fetched too | The coordinates of the city shown or picked, and of your location for rain alerts |
 | [Open-Meteo Forecast](https://open-meteo.com/en/docs) | Every hour, for "hottest and coldest right now" (can be turned off) | The fixed coordinates of 32 watched places, nothing about you |
+| [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) | Every hour, for the city shown (can be turned off) | The coordinates of the city shown |
 | [Open-Meteo Historical Weather](https://open-meteo.com/en/docs/historical-weather-api) | When you open a date more than 90 days ago | The coordinates of the city you picked and the date |
 | [Open-Meteo Geocoding](https://open-meteo.com/en/docs/geocoding-api) | When you search for a city | The search text |
 | [BigDataCloud](https://www.bigdatacloud.com/) | Auto location, to name the place Windows found | Your coordinates |
@@ -107,10 +117,12 @@ Your settings, your cities and their last forecasts stay in `%APPDATA%\SkyGlance
 sky-glance/
 ├── src/
 │   ├── SkyGlance.Core/           Logic with no Windows or UI dependencies
+│   │   ├── Air/                  Air quality index, bands and pollen levels
 │   │   ├── Places/               Saved cities and switching between them
 │   │   ├── Seasons/              Meteorological seasons by hemisphere
+│   │   ├── Sky/                  Moon phase, sun height and golden hours
 │   │   ├── Units/                Temperature, wind and precipitation units
-│   │   ├── Weather/              Open-Meteo requests and parsers, weather codes, forecast and day models
+│   │   ├── Weather/              Open-Meteo requests and parsers, weather codes, forecast and day models, rain alerts
 │   │   └── World/                Hottest and coldest of the watched places
 │   └── SkyGlance/                The Windows app
 │       ├── Assets/               Icon
@@ -125,9 +137,9 @@ sky-glance/
 │           ├── Flyout/           The forecast popup
 │           ├── Settings/         The settings window
 │           ├── Styling/          Theme colours and the weather drawings
-│           └── Taskbar/          The widget inside the taskbar
+│           └── Taskbar/          The widget inside the taskbar and its hover card
 ├── tests/
-│   └── SkyGlance.Core.Tests/     xUnit tests, with a real Open-Meteo answer as a fixture
+│   └── SkyGlance.Core.Tests/     xUnit tests, with real Open-Meteo answers as fixtures
 ├── docs/                         README images
 ├── Directory.Build.props         Version and settings shared by every project
 ├── global.json                   Pinned .NET SDK
@@ -156,7 +168,7 @@ Developer switches:
 
 | Switch | Purpose |
 | --- | --- |
-| `--shots DIR` | Render the widget, flyout, settings pages and every weather picture from demo data, offline |
+| `--shots DIR` | Render the widget, flyout, hover card, menus, settings pages and every weather picture from demo data, offline |
 | `--render-icon DIR` | Regenerate `app.ico` and a 512 px PNG |
 
 ## Releasing
@@ -193,6 +205,8 @@ The [release workflow](.github/workflows/release.yml) runs the tests, builds the
 - درجة مئوية أو فهرنهايت، وخمس وحدات لسرعة الرياح
 - عدة مدن مع التبديل بينها، والطقس في أي يوم منذ 1940
 - الفصل الحالي، وأشد الأماكن حرًا وبردًا على الأرض الآن
+- تنبيه عندما يوشك المطر أن يبدأ أو يتوقف، وبطاقة بالساعات القادمة عند الإشارة إلى الأداة
+- جودة الهواء وحبوب اللقاح، وطور القمر والساعة الذهبية، والمقارنة بطقس أمس
 - لا تغطي الأدوات الأخرى في شريط المهام مثل داتا تايد وصلاتي
 - واجهة عربية كاملة من اليمين إلى اليسار، ووضع داكن وفاتح يتبع ويندوز
 - بلا حساب ولا مفتاح API، وتحديث تلقائي آمن من GitHub
