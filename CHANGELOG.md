@@ -3,6 +3,14 @@
 All notable changes to Sky Glance are listed here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.4] - 2026-11-17
+
+### Fixed
+- Menu text sits in the middle of its row, with each icon centred on it, so the space above and below every separator is even. WinForms placed the text at the top of the padded row.
+
+### Changed
+- The version line at the top of the widget menu shows the Sky Glance icon.
+
 ## [1.2.3] - 2026-11-17
 
 ### Changed
