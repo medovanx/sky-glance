@@ -20,7 +20,8 @@ static class Art
     public const string IconSettings = "\uE713", IconRefresh = "\uE72C", IconLocation = "\uE81D", IconUpdate = "\uE895",
                         IconGeneral = "\uE771", IconSearch = "\uE721", IconTaskbar = "\uE7C4", IconRuler = "\uECC6",
                         IconWeather = "\uE9CA", IconChevronDown = "\uE70D", IconCalendar = "\uE787", IconPrev = "\uE76B", IconNext = "\uE76C", IconPrevYear = "\uE892", IconNextYear = "\uE893", IconDelete = "\uE74D", IconAdd = "\uE710",
-                        IconOpen = "\uE8A7", IconDocument = "\uE8A5";
+                        IconOpen = "\uE8A7", IconDocument = "\uE8A5",
+                        IconInfo = "\uE946", IconGlobe = "\uE774", IconPower = "\uE7E8";
 
     public static readonly string IconFontName =
         new System.Drawing.Text.InstalledFontCollection().Families.Any(f => f.Name == "Segoe Fluent Icons")
@@ -33,6 +34,29 @@ static class Art
         if (icon == SkyIcon.Thunder) return (Color.FromArgb(70, 76, 112), Color.FromArgb(26, 28, 52));
         if (!day) return grey ? (Color.FromArgb(52, 62, 92), Color.FromArgb(18, 22, 42)) : (Color.FromArgb(40, 58, 128), Color.FromArgb(10, 16, 48));
         return grey ? (Color.FromArgb(104, 134, 172), Color.FromArgb(46, 66, 104)) : (SkyLight, SkyDark);
+    }
+
+    /// <summary>
+    /// Draws an icon-font glyph centred on its ink, not its text box: some glyphs sit off-centre
+    /// inside their box, so centring the box looks lopsided.
+    /// </summary>
+    public static void GlyphCentered(Graphics g, string glyph, float emPixels, RectangleF box, Color c)
+    {
+        using var path = new GraphicsPath();
+        using var family = new FontFamily(IconFontName);
+        path.AddString(glyph, family, (int)FontStyle.Regular, emPixels, PointF.Empty, StringFormat.GenericTypographic);
+        var b = path.GetBounds();
+        if (b.Width <= 0 || b.Height <= 0) return;
+        using (var m = new Matrix())
+        {
+            m.Translate(box.Left + (box.Width - b.Width) / 2f - b.Left, box.Top + (box.Height - b.Height) / 2f - b.Top);
+            path.Transform(m);
+        }
+        var old = g.SmoothingMode;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        using var brush = new SolidBrush(c);
+        g.FillPath(brush, path);
+        g.SmoothingMode = old;
     }
 
     public static GraphicsPath RoundRect(RectangleF r, float rad)

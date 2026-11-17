@@ -41,6 +41,15 @@ static class Shots
                 settings.ShowPage(i);
                 SaveClient(settings, Path.Combine(dir, $"settings-{i}-{lang}.png"));
             }
+            foreach (var dark in new[] { true, false })
+            {
+                var m = app.MenuForShot(dark);
+                m.Show(new Point(-4000, -4000));
+                ((ToolStripMenuItem)m.Items[2]).Select();
+                SaveControl(m, Path.Combine(dir, $"widget-menu-{lang}-{(dark ? "dark" : "light")}.png"), rounded: false);
+                m.Close();
+            }
+
             settings.ShowPage(SettingsForm.UpdatesPage);
             app.DemoUpdate(0.45);
             SaveClient(settings, Path.Combine(dir, $"settings-updating-{lang}.png"));

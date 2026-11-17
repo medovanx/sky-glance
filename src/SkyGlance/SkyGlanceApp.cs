@@ -410,15 +410,30 @@ sealed class SkyGlanceApp : ApplicationContext
         Updater.OpenPage(rel.PageUrl);
     }
 
+    /// <summary>The widget's right-click menu in the app style, like Data Tide's: theme surface, rounded rows and corners, icons.</summary>
     void BuildMenu()
     {
         menu.Items.Clear();
         menu.RightToLeft = L.Ar ? RightToLeft.Yes : RightToLeft.No;
-        menu.Items.Add(L.T("ShowWeather"), null, (_, _) => ShowFlyout()).Font = new Font(menu.Font, FontStyle.Bold);
-        menu.Items.Add(L.T("RefreshNow"), null, async (_, _) => await RefreshAsync());
-        menu.Items.Add(L.T("WeatherOnDate") + "...", null, (_, _) => ShowCalendar());
+        ToolStripMenuItem Item(string text, string? glyph, Action? click = null)
         {
-            var cityMenu = new ToolStripMenuItem(L.T("City"));
+            var it = new ToolStripMenuItem(text) { Tag = glyph == null ? null : new MenuRenderer.MenuGlyph(glyph) };
+            if (click != null) it.Click += (_, _) => click();
+            return it;
+        }
+
+        // Which app and version this is, as a quiet line on top.
+        menu.Items.Add(new ToolStripMenuItem($"{L.T("AppName")}  {L.Ltr(Updater.CurrentText)}") { Enabled = false, Tag = new MenuRenderer.MenuGlyph(Art.IconInfo) });
+        menu.Items.Add(new ToolStripSeparator());
+
+        var show = Item(L.T("ShowWeather"), Art.IconWeather, ShowFlyout);
+        show.Font = new Font("Segoe UI Semibold", 9.5f);
+        menu.Items.Add(show);
+        menu.Items.Add(Item(L.T("RefreshNow"), Art.IconRefresh, () => _ = RefreshAsync()));
+        menu.Items.Add(Item(L.T("WeatherOnDate") + "...", Art.IconCalendar, () => ShowCalendar()));
+        menu.Items.Add(new ToolStripSeparator());
+        {
+            var cityMenu = Item(L.T("City"), Art.IconLocation);
             for (int i = -1; i < S.Cities.Count; i++)
             {
                 int index = i;
@@ -431,7 +446,7 @@ sealed class SkyGlanceApp : ApplicationContext
             menu.Items.Add(cityMenu);
         }
 
-        var unitMenu = new ToolStripMenuItem(L.T("TempUnitMenu"));
+        var unitMenu = Item(L.T("TempUnitMenu"), Art.IconRuler);
         foreach (var (u, key) in new[] { (TemperatureUnit.Celsius, "Celsius"), (TemperatureUnit.Fahrenheit, "Fahrenheit") })
         {
             var item = new ToolStripMenuItem(L.T(key)) { Checked = S.Temperature == u };
@@ -441,7 +456,7 @@ sealed class SkyGlanceApp : ApplicationContext
         menu.Items.Add(unitMenu);
 
         // Each language is named in itself, so it can be found from either one.
-        var langMenu = new ToolStripMenuItem(L.T("Language"));
+        var langMenu = Item(L.T("Language"), Art.IconGlobe);
         foreach (var (code, name) in new[] { ("en", "English"), ("ar", "العربية") })
         {
             var item = new ToolStripMenuItem(name) { Checked = S.Language == code };
@@ -451,21 +466,25 @@ sealed class SkyGlanceApp : ApplicationContext
         menu.Items.Add(langMenu);
 
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(L.T("Settings"), null, (_, _) => ShowSettings());
+        menu.Items.Add(Item(L.T("Settings"), Art.IconSettings, () => ShowSettings()));
         // While an update is being checked or installed, the item says where it is and can't be clicked again.
-        var check = menu.Items.Add(UpdateBusy ? UpdateStatus : L.T("CheckForUpdates"), null, async (_, _) =>
+        if (UpdateBusy) menu.Items.Add(new ToolStripMenuItem(UpdateStatus) { Enabled = false, Tag = new MenuRenderer.MenuGlyph(Art.IconUpdate) });
+        else menu.Items.Add(Item(L.T("CheckForUpdates"), Art.IconUpdate, async () =>
         {
             var msg = await CheckForUpdatesAsync(userInitiated: true);
             if (!installing) Toast.Show(L.T("AppName"), msg);
-        });
-        check.Enabled = !UpdateBusy;
+        }));
         var startup = new ToolStripMenuItem(L.T("StartWithWindows")) { Checked = AppSettings.StartWithWindows };
         startup.Click += (_, _) => { try { AppSettings.StartWithWindows = !startup.Checked; } catch { } };
         menu.Items.Add(startup);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(L.T("Exit"), null, (_, _) => Exit());
-        MenuRenderer.Apply(menu, Theme.Current);
+        menu.Items.Add(Item(L.T("Exit"), Art.IconPower, Exit));
+        MenuRenderer.Apply(menu, shotTheme ?? Theme.Current);
     }
+
+    /// <summary>For screenshots: the right-click menu built as it would open now.</summary>
+    internal ContextMenuStrip MenuForShot(bool dark) { shotTheme = new Theme(dark); BuildMenu(); return menu; }
+    Theme? shotTheme; // the theme a screenshot asks for; the menu rebuilds itself as it opens
 
     public const string ShowFlyoutMessage = "SkyGlance.ShowFlyout";
 
