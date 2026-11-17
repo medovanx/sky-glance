@@ -3,6 +3,11 @@
 All notable changes to Sky Glance are listed here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.3] - 2026-11-17
+
+### Changed
+- The widget's right-click menu is drawn in the app style, like Data Tide's: an icon on every row, lined up with its text, rounded rows and corners, roomier spacing and an accent check. Its first line shows the app name and version.
+
 ## [1.2.2] - 2026-11-17
 
 ### Added
