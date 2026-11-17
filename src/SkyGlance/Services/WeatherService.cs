@@ -18,6 +18,10 @@ public static class WeatherService
         return OpenMeteo.Parse(json, DateTime.UtcNow);
     }
 
+    /// <summary>The air quality right now (and pollen in Europe), from Open-Meteo's air quality service.</summary>
+    public static async Task<AirReading> FetchAirAsync(double lat, double lon) =>
+        AirQuality.Parse(await Http.GetStringAsync(AirQuality.Url(lat, lon)), DateTime.UtcNow);
+
     /// <summary>The weather of one calendar day, from the forecast or the archive.</summary>
     public static async Task<DayReport> FetchDayAsync(double lat, double lon, DateOnly date, DaySource source) =>
         DayQuery.Parse(await Http.GetStringAsync(DayQuery.Url(lat, lon, date, source)), source);

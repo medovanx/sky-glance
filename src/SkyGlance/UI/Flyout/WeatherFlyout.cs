@@ -83,8 +83,11 @@ sealed class WeatherFlyout : Form
     bool HasData => app.Forecast != null;
 
     int BodyHeight(int days) => HasData
-        ? Gap + TileH * 2 + 6 + Gap + HourlyH + Gap + 26 + days * DayH + WorldHeight + 8 + 18 + 8
+        ? Gap + TileRows * TileH + (TileRows - 1) * 6 + Gap + HourlyH + Gap + 26 + days * DayH + WorldHeight + 8 + 18 + 8
         : 90;
+
+    /// <summary>Two rows of tiles, and a third for the air, the moon and the golden hour when they are turned on.</summary>
+    int TileRows => app.S.ShowAirQuality || app.S.ShowSky ? 3 : 2;
 
     const int WorldRowH = 30;
     bool worldFits = true;
@@ -335,6 +338,16 @@ sealed class WeatherFlyout : Form
         var tempR = M(new Rectangle(pad + iconS + Px(4), Px(58), Px(130), Px(56)));
         TextRenderer.DrawText(g, temp, fBig, tempR, Color.White, (Rtl ? TextFormatFlags.Right : TextFormatFlags.Left) | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
 
+        // Under the temperature: how it compares with the same hour yesterday.
+        if ((DateTime.UtcNow - f.FetchedUtc).TotalMinutes < 75 && f.ChangeSinceYesterday(localNow, cur.tempC) is { } delta)
+        {
+            string[] parts = Math.Abs(UnitConvert.Temperature(delta + 100, app.S.Temperature) - UnitConvert.Temperature(100, app.S.Temperature)) < 0.5
+                ? [L.T("SameAsYesterday")]
+                : L.Ar ? [L.T(delta > 0 ? "WarmerThanYesterday" : "ColderThanYesterday"), UnitFormat.TemperatureDelta(delta, app.S.Temperature)]
+                       : [UnitFormat.TemperatureDelta(delta, app.S.Temperature), L.T(delta > 0 ? "WarmerThanYesterday" : "ColderThanYesterday")];
+            Run(g, parts, fSmall, soft, new Rectangle(pad + iconS + Px(4), Px(112), Px(170), Px(18)), far: false);
+        }
+
         var today = f.Today(localNow);
         int farW = Px(150);
         var farX = Width - pad - farW;
@@ -414,30 +427,71 @@ sealed class WeatherFlyout : Form
         string Sun(DateTime? v) => v is { } x ? L.Clock(x) : L.T("NoSun");
         string compass = L.T($"Compass{UnitConvert.Compass(c.WindDirection)}");
         int chance = f.HoursFrom(localNow, 1).FirstOrDefault()?.PrecipitationChance ?? today?.PrecipitationChance ?? 0;
-        var tiles = new (string label, string[] value)[]
+        var tiles = new List<(string label, string[] value, Action<Graphics, RectangleF>? picture)>
         {
-            (L.T("Humidity"), [UnitFormat.Percent(c.Humidity)]),
-            (L.T("Wind"), [UnitFormat.Wind(c.WindKmh, app.S.Wind), compass]),
-            (L.T("UvIndex"), [today != null ? Math.Round(today.UvIndexMax).ToString(System.Globalization.CultureInfo.InvariantCulture) : "-"]),
+            (L.T("Humidity"), [UnitFormat.Percent(c.Humidity)], null),
+            (L.T("Wind"), [UnitFormat.Wind(c.WindKmh, app.S.Wind), compass], null),
+            (L.T("UvIndex"), [today != null ? Math.Round(today.UvIndexMax).ToString(System.Globalization.CultureInfo.InvariantCulture) : "-"], null),
             (L.T("RainChance"), c.PrecipitationMm > 0
                 ? [UnitFormat.Percent(chance), UnitFormat.Precipitation(c.PrecipitationMm, app.S.Precipitation)]
-                : [UnitFormat.Percent(chance)]),
-            (L.T("Sunrise"), [Sun(today?.Sunrise)]),
-            (L.T("Sunset"), [Sun(today?.Sunset)]),
+                : [UnitFormat.Percent(chance)], null),
+            (L.T("Sunrise"), [Sun(today?.Sunrise)], null),
+            (L.T("Sunset"), [Sun(today?.Sunset)], null),
         };
+        double lat = app.ActivePlace?.Latitude ?? f.Latitude, lon = app.ActivePlace?.Longitude ?? f.Longitude;
+        if (app.S.ShowAirQuality)
+        {
+            // The European index with its band, and pollen in the label when there is enough to notice (Europe only).
+            var a = app.Air;
+            string label = a?.TopPollen is { level: >= PollenLevel.Moderate } top ? L.F("AirPollen", L.T("Pollen" + top.level)) : L.T("AirQuality");
+            if (a is { EuropeanAqi: { } aqi, Category: { } cat })
+                tiles.Add((label, [aqi.ToString(System.Globalization.CultureInfo.InvariantCulture), L.T("Air" + cat)], (gr, box) =>
+                {
+                    using var b = new SolidBrush(Art.AirColor(cat));
+                    float d = box.Height * 0.5f;
+                    gr.FillEllipse(b, box.X + (box.Width - d) / 2, box.Y + (box.Height - d) / 2, d, d);
+                }));
+            else tiles.Add((label, ["-"], null));
+        }
+        if (app.S.ShowSky)
+        {
+            // Tonight's moon, drawn as it looks (the lit side flips south of the equator), and how much of it is lit.
+            var utc = DateTime.UtcNow;
+            double lit = Moon.Illumination(utc);
+            bool litOnRight = Moon.Waxing(utc) != lat < 0;
+            tiles.Add((L.T("Moon" + Moon.Phase(utc)), [UnitFormat.Percent((int)Math.Round(lit * 100))],
+                (gr, box) => Art.MoonPicture(gr, box, lit, litOnRight, t.Dark ? Color.FromArgb(70, 76, 90) : Color.FromArgb(200, 206, 216))));
+            // The golden hour going on now (until when) or the next one.
+            var golden = SkyGlance.Core.Sky.Sun.Next(localNow, lat, lon, f.UtcOffsetSeconds);
+            string[] gv = golden == null ? [L.T("NoGolden")]
+                : golden.Start <= localNow ? [L.F("GoldenUntil", L.Clock(golden.End))]
+                : [L.Clock(golden.Start)];
+            tiles.Add((L.T("GoldenHour"), gv, null));
+        }
         using var fLabel = new Font("Segoe UI", 8f);
         using var fValue = new Font("Segoe UI Semibold", 10f);
         int pad = Px(Pad), gap = Px(6), tw = (Width - pad * 2 - gap * 2) / 3, th = Px(TileH);
-        for (int i = 0; i < tiles.Length; i++)
+        for (int i = 0; i < tiles.Count; i++)
         {
             int col = i % 3, row = i / 3;
             var r = M(new Rectangle(pad + col * (tw + gap), y + row * (th + gap), tw, th));
             Art.FillRound(g, r, Px(8), t.Surface);
             var inner = Rectangle.Inflate(r, -Px(10), 0);
             TextRenderer.DrawText(g, tiles[i].label, fLabel, new Rectangle(inner.X, r.Y + Px(5), inner.Width, Px(16)), t.Dim, Near | TextFormatFlags.EndEllipsis);
-            Run(g, tiles[i].value, fValue, t.Text, new Rectangle(inner.X, r.Y + Px(21), inner.Width, Px(20)), far: false, mirrored: true);
+            var valueR = new Rectangle(inner.X, r.Y + Px(21), inner.Width, Px(20));
+            if (tiles[i].picture is { } draw)
+            {
+                // A small picture on the reading side of the value: the moon, or the air quality colour.
+                int ps = Px(16);
+                var box = new RectangleF(Rtl ? valueR.Right - ps : valueR.X, valueR.Y + (valueR.Height - ps) / 2f, ps, ps);
+                draw(g, box);
+                valueR = Rtl ? new Rectangle(valueR.X, valueR.Y, valueR.Width - ps - Px(6), valueR.Height)
+                             : new Rectangle(valueR.X + ps + Px(6), valueR.Y, valueR.Width - ps - Px(6), valueR.Height);
+            }
+            Run(g, tiles[i].value, fValue, t.Text, valueR, far: false, mirrored: true);
         }
-        return y + th * 2 + gap;
+        int rows = (tiles.Count + 2) / 3;
+        return y + th * rows + gap * (rows - 1);
     }
 
     void DrawHourly(Graphics g, Theme t, Forecast f, DateTime localNow, Rectangle card)

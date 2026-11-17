@@ -12,7 +12,8 @@ sealed class SettingsForm : Form
     // General
     readonly ThemedCombo cmbLang = Combo(), cmbSide = Combo(), cmbRefresh = Combo();
     readonly ThemedNumber numOffset = Num(-2000, 2000);
-    readonly ToggleSwitch tglStartup = new(), tglCondition = new(), tglHighLow = new(), tglExtremes = new(), tglSeason = new();
+    readonly ToggleSwitch tglStartup = new(), tglCondition = new(), tglHighLow = new(), tglExtremes = new(), tglSeason = new(),
+        tglAir = new(), tglSky = new(), tglAirDot = new(), tglRain = new(), tglHover = new(), tglAnimate = new(), tglClock12 = new();
     static readonly int[] RefreshOptions = [10, 15, 30, 60];
     // Location
     readonly ToggleSwitch tglAuto = new();
@@ -130,20 +131,37 @@ sealed class SettingsForm : Form
         tglHighLow.Checked = s.ShowHighLow;
         tglExtremes.Checked = s.ShowExtremes;
         tglSeason.Checked = s.ShowSeason;
+        tglAir.Checked = s.ShowAirQuality;
+        tglSky.Checked = s.ShowSky;
+        tglAirDot.Checked = s.AirDot;
+        tglRain.Checked = s.RainAlerts;
+        tglHover.Checked = s.HoverCard;
+        tglAnimate.Checked = s.AnimateIcon;
+        tglClock12.Checked = s.Clock12;
+        var rainNote = new Label { Text = L.T("RainAlertsNote"), AutoSize = true, MaximumSize = new Size(490, 0), Tag = "dim", Margin = new Padding(0, 0, 0, 6) };
         tglStartup.Checked = !app.Headless && AppSettings.StartWithWindows;
         AddPage(Art.IconGeneral, L.T("General"),
             Card(L.T("General"), Art.IconGeneral,
                 Row(L.T("Language"), cmbLang),
+                Row(L.T("Clock12"), tglClock12),
                 Row(L.T("RefreshEvery"), cmbRefresh),
                 Row(L.T("StartWithWindows"), tglStartup)),
             Card(L.T("Taskbar"), Art.IconTaskbar,
                 Row(L.T("ShowCondition"), tglCondition),
                 Row(L.T("ShowHighLow"), tglHighLow),
+                Row(L.T("HoverCardSetting"), tglHover),
+                Row(L.T("AnimateIcon"), tglAnimate),
+                Row(L.T("AirDot"), tglAirDot),
                 Row(L.T("WidgetPosition"), cmbSide),
                 Row(L.T("WidgetOffset"), numOffset)),
             Card(L.T("Flyout"), Art.IconWeather,
                 Row(L.T("ShowSeason"), tglSeason),
-                Row(L.T("ShowExtremes"), tglExtremes)));
+                Row(L.T("ShowAirQuality"), tglAir),
+                Row(L.T("ShowSky"), tglSky),
+                Row(L.T("ShowExtremes"), tglExtremes)),
+            Card(L.T("Notifications"), Art.IconBell,
+                Row(L.T("RainAlerts"), tglRain),
+                rainNote));
     }
 
     void BuildLocation()
@@ -327,6 +345,13 @@ sealed class SettingsForm : Form
         s.ShowHighLow = tglHighLow.Checked;
         s.ShowExtremes = tglExtremes.Checked;
         s.ShowSeason = tglSeason.Checked;
+        s.ShowAirQuality = tglAir.Checked;
+        s.ShowSky = tglSky.Checked;
+        s.AirDot = tglAirDot.Checked;
+        s.RainAlerts = tglRain.Checked;
+        s.HoverCard = tglHover.Checked;
+        s.AnimateIcon = tglAnimate.Checked;
+        s.Clock12 = tglClock12.Checked;
         s.AutoLocation = tglAuto.Checked;
         // The city may have been switched from the flyout while this window was open: keep that unless the list changed.
         if (s.Cities.Select(c => c.Key).SequenceEqual(app.S.Cities.Select(c => c.Key))) s.ActiveCity = app.S.ActiveCity;

@@ -3,7 +3,7 @@ using System.Globalization;
 
 namespace SkyGlance.UI.Calendar;
 
-/// <summary>The weather of the picked day: a header like the flyout's, six tiles and the day in eight steps of three hours.</summary>
+/// <summary>The weather of the picked day: a header like the flyout's, six tiles and the day hour by hour.</summary>
 sealed class DayView : Control
 {
     readonly SkyGlanceApp app;
@@ -107,22 +107,55 @@ sealed class DayView : Control
         }
         y += th * 2 + gap + Px(12);
 
-        // The day in eight steps: 00:00, 03:00 ... 21:00.
-        var card = new Rectangle(0, y, Width, Math.Max(Px(90), Height - y - 1));
+        // The day hour by hour: the temperature as a curve with a value every three hours, rain as bars
+        // (the chance for a forecast day, the amount that fell for a past one), the picture and time below.
+        var card = new Rectangle(0, y, Width, Math.Max(Px(120), Height - y - 1));
         Art.FillRound(g, card, Px(10), t.Surface);
+        using var fTitle = new Font("Segoe UI Semibold", 9.5f);
         using var fTime = new Font("Segoe UI", 8f);
-        using var fTemp = new Font("Segoe UI Semibold", 9.5f);
-        var steps = r.Hours.Where(h => h.Time.Hour % 3 == 0).Take(8).ToList();
-        if (steps.Count == 0) return;
-        int colW = card.Width / steps.Count;
-        for (int i = 0; i < steps.Count; i++)
+        using var fTemp = new Font("Segoe UI Semibold", 8.5f);
+        TextRenderer.DrawText(g, L.T("HourByHour"), fTitle, M(new Rectangle(card.X + Px(12), card.Y + Px(6), card.Width - Px(24), Px(20))), t.Text, Near);
+        var hours = r.Hours.OrderBy(h => h.Time).Take(24).ToList();
+        if (hours.Count < 2) return;
+        var plot = new RectangleF(card.X + Px(22), card.Y + Px(46), card.Width - Px(44), Px(26));
+        double lo = hours.Min(h => h.TemperatureC), hi = hours.Max(h => h.TemperatureC);
+        if (hi - lo < 2) { lo -= 1; hi += 1; }
+        float X(int i) { float x = plot.Left + plot.Width * i / (hours.Count - 1); return Rtl ? Width - x : x; }
+        PointF P(int i) => new(X(i), plot.Bottom - (float)((hours[i].TemperatureC - lo) / (hi - lo)) * plot.Height);
+
+        float barBottom = card.Bottom - Px(40);
+        bool chances = hours.Any(h => h.PrecipitationChance > 0);
+        double maxMm = Math.Max(1, hours.Max(h => h.PrecipitationMm));
+        using (var rain = new SolidBrush(Color.FromArgb(t.Dark ? 60 : 45, t.Rain)))
+            for (int i = 0; i < hours.Count; i++)
+            {
+                float share = chances ? hours[i].PrecipitationChance / 100f : (float)(hours[i].PrecipitationMm / maxMm);
+                if (share <= 0) continue;
+                float bh = (barBottom - plot.Top) * share, bw = Math.Max(2f, plot.Width / hours.Count - Px(2));
+                g.FillRectangle(rain, X(i) - bw / 2, barBottom - bh, bw, bh);
+            }
+
+        var pts = Enumerable.Range(0, hours.Count).Select(P).ToArray();
+        using (var area = new GraphicsPath())
         {
-            int col = Rtl ? steps.Count - 1 - i : i;
-            var cr = new Rectangle(card.X + col * colW, card.Y, colW, card.Height);
-            TextRenderer.DrawText(g, L.Hour(steps[i].Time), fTime, new Rectangle(cr.X, cr.Y + Px(10), cr.Width, Px(16)), t.Dim, TextFormatFlags.HorizontalCenter);
-            int s = Px(26);
-            Art.Weather(g, new RectangleF(cr.X + (cr.Width - s) / 2f, cr.Y + Px(30), s, s), WeatherCode.Icon(steps[i].Code), steps[i].IsDay);
-            TextRenderer.DrawText(g, Num(steps[i].TemperatureC), fTemp, new Rectangle(cr.X, cr.Y + Px(60), cr.Width, Px(20)), t.Text, TextFormatFlags.HorizontalCenter);
+            area.AddCurve(pts, 0.4f);
+            area.AddLine(pts[^1], new PointF(pts[^1].X, barBottom));
+            area.AddLine(new PointF(pts[^1].X, barBottom), new PointF(pts[0].X, barBottom));
+            area.CloseFigure();
+            using var fill = new LinearGradientBrush(new RectangleF(plot.Left, plot.Top - Px(4), plot.Width, barBottom - plot.Top + Px(8)),
+                Color.FromArgb(90, t.Warm), Color.FromArgb(0, t.Warm), LinearGradientMode.Vertical);
+            g.FillPath(fill, area);
+        }
+        using (var pen = new Pen(t.Warm, 1.8f * S)) g.DrawCurve(pen, pts, 0.4f);
+
+        for (int i = 0; i < hours.Count; i += 3)
+        {
+            var p = pts[i];
+            using (var dot = new SolidBrush(t.Warm)) g.FillEllipse(dot, p.X - Px(3), p.Y - Px(3), Px(6), Px(6));
+            TextRenderer.DrawText(g, Num(hours[i].TemperatureC), fTemp, new Rectangle((int)p.X - Px(20), (int)p.Y - Px(20), Px(40), Px(16)), t.Text, TextFormatFlags.HorizontalCenter);
+            int hourIcon = Px(18);
+            Art.Weather(g, new RectangleF(p.X - hourIcon / 2f, card.Bottom - Px(38), hourIcon, hourIcon), WeatherCode.Icon(hours[i].Code), hours[i].IsDay);
+            TextRenderer.DrawText(g, L.Hour(hours[i].Time), fTime, new Rectangle((int)p.X - Px(24), card.Bottom - Px(19), Px(48), Px(16)), t.Dim, TextFormatFlags.HorizontalCenter);
         }
     }
 }

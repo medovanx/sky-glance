@@ -51,14 +51,49 @@ sealed class TaskbarWidget : NativeWindow
     float phase;
     readonly System.Windows.Forms.Timer anim = new() { Interval = 33 };
 
+    // Extras: a dot for poor air, and rain or snow drifting in the picture.
+    Color? badge;
+    bool animate;
+    float drift;
+
     /// <summary>Shows or hides the update progress line. A null fraction slides, for work with no known end.</summary>
     public void SetProgress(bool isBusy, double? done)
     {
         if (isBusy == busy && done == fraction) return;
         busy = isBusy; fraction = done;
-        if (anim.Tag == null) { anim.Tag = true; anim.Tick += (_, _) => { phase = (phase + 0.02f) % 1f; if (Alive) Render(); }; }
-        anim.Enabled = busy && fraction == null;
+        SyncAnim();
         if (Alive) Render();
+    }
+
+    /// <param name="airDot">Colour of a dot by the picture when the air is poor, or null for none.</param>
+    /// <param name="animated">Let rain and snow drift in the picture (only pictures with something falling move).</param>
+    public void SetExtras(Color? airDot, bool animated)
+    {
+        if (airDot == badge && animated == animate) return;
+        badge = airDot; animate = animated;
+        SyncAnim();
+        if (Alive) Render();
+    }
+
+    bool Drifting => animate && Art.Falls(icon);
+
+    /// <summary>One timer for both motions: about 30 frames a second for the progress line, 12 for falling rain or snow.</summary>
+    void SyncAnim()
+    {
+        if (anim.Tag == null)
+        {
+            anim.Tag = true;
+            anim.Tick += (_, _) =>
+            {
+                if (busy && fraction == null) phase = (phase + 0.02f) % 1f;
+                if (Drifting) drift = (drift + (busy && fraction == null ? 0.011f : 0.03f)) % 1f;
+                if (Alive) Render();
+            };
+        }
+        bool sliding = busy && fraction == null;
+        anim.Interval = sliding ? 33 : 83;
+        anim.Enabled = sliding || Drifting;
+        if (!Drifting) drift = 0;
     }
 
     public bool Alive => Handle != IntPtr.Zero && IsWindow(Handle);
@@ -99,6 +134,7 @@ sealed class TaskbarWidget : NativeWindow
         if (temperature == temp && conditionText == condition && hl == hiLo && (highLow != null) == showHiLo && sky == icon && isDay == day && withCondition == showCondition && isRtl == rtl) return;
         bool relayout = isRtl != rtl || withCondition != showCondition || (highLow != null) != showHiLo;
         temp = temperature; condition = conditionText; hiLo = hl; showHiLo = highLow != null; icon = sky; day = isDay; showCondition = withCondition; rtl = isRtl;
+        SyncAnim(); // the picture may have started or stopped raining
         if (!Alive) return;
         var before = size;
         Render();
@@ -264,7 +300,7 @@ sealed class TaskbarWidget : NativeWindow
     {
         if (!GetWindowRect(tray, out var tr)) return;
         using var bmp = Paint(temp, condition, showHiLo ? hiLo : null, icon, day, showCondition, hover, rtl, SystemDark(), Scale, tr.Height,
-                              busy ? new Progress(fraction, phase) : null);
+                              busy ? new Progress(fraction, phase) : null, badge, Drifting ? drift : -1);
         size = bmp.Size;
         var screen = GetDC(IntPtr.Zero);
         var mem = CreateCompatibleDC(screen);
@@ -293,8 +329,10 @@ sealed class TaskbarWidget : NativeWindow
     /// <summary>An update in progress: the fraction done (null when unknown) and where the sliding segment is.</summary>
     public readonly record struct Progress(double? Fraction, float Phase);
 
+    /// <param name="airDot">Colour of the poor-air dot beside the picture, or null.</param>
+    /// <param name="drift">Where falling rain or snow is in the animation (0 to 1), or negative for the still picture.</param>
     public static Bitmap Paint(string temp, string condition, string? highLow, SkyIcon icon, bool isDay, bool withCondition, bool hover, bool rtl, bool dark, float s, int h,
-                               Progress? progress = null)
+                               Progress? progress = null, Color? airDot = null, float drift = -1)
     {
         // Same sizes as the sibling widgets (Data Tide 13.5 px Semibold, Salaty Reminder 12 px), so they read as one family.
         using var fTemp = new Font("Segoe UI Semibold", (withCondition ? 13.5f : 15f) * s, GraphicsUnit.Pixel);
@@ -334,7 +372,16 @@ sealed class TaskbarWidget : NativeWindow
             }
 
             int iconX = rtl ? w - pad - iconS : pad;
-            Art.Weather(g, new RectangleF(iconX, (h - iconS) / 2f, iconS, iconS), icon, isDay);
+            Art.Weather(g, new RectangleF(iconX, (h - iconS) / 2f, iconS, iconS), icon, isDay, drift);
+            if (airDot is { } dc)
+            {
+                // A small dot at the picture's top outer corner, ringed so it reads on any picture.
+                float r = 3.5f * s, cx = rtl ? iconX + r : iconX + iconS - r, cy = (h - iconS) / 2f + r;
+                using var ring = new SolidBrush(dark ? Color.FromArgb(30, 34, 40) : Color.White);
+                g.FillEllipse(ring, cx - r - s, cy - r - s, 2 * (r + s), 2 * (r + s));
+                using var dot = new SolidBrush(dc);
+                g.FillEllipse(dot, cx - r, cy - r, 2 * r, 2 * r);
+            }
 
             Color fg = dark ? Color.White : Color.FromArgb(20, 20, 20);
             Color dim = dark ? Color.FromArgb(210, 220, 228) : Color.FromArgb(70, 76, 84);

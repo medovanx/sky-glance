@@ -18,7 +18,7 @@ static class Shots
         var forecast = all[Place.KeyOf(DemoData.Lat, DemoData.Lon)];
         foreach (var lang in new[] { "en", "ar" })
         {
-            var app = new SkyGlanceApp(DemoData.Settings(lang), all, DemoData.World());
+            var app = new SkyGlanceApp(DemoData.Settings(lang), all, DemoData.World(), DemoData.Air());
             var c = forecast.Current;
 
             WidgetStrip(Path.Combine(dir, $"widget-{lang}.png"), UnitFormat.Temperature(c.TemperatureC, TemperatureUnit.Celsius),
@@ -41,6 +41,17 @@ static class Shots
                 settings.ShowPage(i);
                 SaveClient(settings, Path.Combine(dir, $"settings-{i}-{lang}.png"));
             }
+            foreach (var dark in new[] { true, false })
+            {
+                var card = new HoverCard();
+                card.ShowForShot(app, dark);
+                SaveControl(card, Path.Combine(dir, $"hover-{lang}-{(dark ? "dark" : "light")}.png"), rounded: true);
+                card.Dispose();
+            }
+
+            // The widget with rain falling partway, and with the poor-air dot.
+            WidgetStrip(Path.Combine(dir, $"widget-rain-{lang}.png"), "9°", L.Condition(63), app.HighLow(), SkyIcon.Rain, true, lang == "ar", drift: 0.35f, airDot: Art.AirColor(AirCategory.Poor));
+
             foreach (var dark in new[] { true, false })
             {
                 var m = app.MenuForShot(dark);
@@ -68,11 +79,12 @@ static class Shots
     }
 
     /// <summary>The widget on a dark taskbar-coloured strip, at 150% scale for a crisp README image.</summary>
-    static void WidgetStrip(string path, string temp, string condition, string? highLow, SkyIcon icon, bool day, bool rtl, TaskbarWidget.Progress? progress = null)
+    static void WidgetStrip(string path, string temp, string condition, string? highLow, SkyIcon icon, bool day, bool rtl, TaskbarWidget.Progress? progress = null,
+                            float drift = -1, Color? airDot = null)
     {
         const float s = 1.5f;
         int h = (int)(48 * s);
-        using var widget = TaskbarWidget.Paint(temp, condition, highLow, icon, day, true, false, rtl, true, s, h, progress);
+        using var widget = TaskbarWidget.Paint(temp, condition, highLow, icon, day, true, false, rtl, true, s, h, progress, airDot, drift);
         using var strip = new Bitmap(widget.Width + (int)(40 * s), h);
         using (var g = Graphics.FromImage(strip))
         {

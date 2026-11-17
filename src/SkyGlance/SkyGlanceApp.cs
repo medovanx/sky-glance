@@ -48,14 +48,28 @@ sealed class SkyGlanceApp : ApplicationContext
     /// <summary>Raised when the forecast or the settings change.</summary>
     public event Action? Changed;
 
-    public SkyGlanceApp(AppSettings? settings = null, Dictionary<string, Forecast>? demo = null, Extremes? demoWorld = null)
+    /// <summary>The last air quality reading of each place, keyed by <see cref="Place.Key"/>; fetched hourly, kept in memory only.</summary>
+    readonly Dictionary<string, AirReading> air = [];
+    /// <summary>The air at the place shown; null until fetched or when the air quality service can't be reached.</summary>
+    public AirReading? Air => ActivePlace is { } p && air.TryGetValue(p.Key, out var a) ? a : null;
+    DateTime nextAirTryUtc = DateTime.MinValue;
+    bool fetchingAir;
+
+    readonly HoverCard hoverCard = new();
+    // The last rain alert, so one shower raises one notification however often the forecast is refreshed.
+    bool? lastRainStarting;
+    DateTime lastRainAlertUtc = DateTime.MinValue;
+
+    public SkyGlanceApp(AppSettings? settings = null, Dictionary<string, Forecast>? demo = null, Extremes? demoWorld = null, Dictionary<string, AirReading>? demoAir = null)
     {
         Headless = settings != null;
         S = settings ?? AppSettings.Load();
         L.Ar = S.Language == "ar";
+        L.Clock12 = S.Clock12;
         AppIcon = LoadIcon();
         forecasts = demo ?? (Headless ? [] : ForecastStore.Load());
         World = demoWorld;
+        if (demoAir != null) air = demoAir;
 
         host = new HostWindow(this);
         menu.Opening += (_, e) => { BuildMenu(); e.Cancel = false; };
@@ -64,10 +78,18 @@ sealed class SkyGlanceApp : ApplicationContext
         // No icon in the notification area: the widget's own right-click menu has every command, launching the
         // exe again opens the flyout, and messages arrive as Windows toasts.
         Toast.Init(AppIcon, a => host.BeginInvoke(a));
-        widget.Clicked += ToggleFlyout;
+        widget.Clicked += () => { hoverCard.Cancel(); ToggleFlyout(); };
         widget.Wheeled += steps => { if (S.Cities.Count > 0) Cycle(steps); };
+        // Resting the mouse on the widget shows the next hours, unless the flyout is open.
+        widget.HoverChanged += over =>
+        {
+            if (!over || !S.HoverCard) { hoverCard.Cancel(); return; }
+            if (flyout?.Visible == true || Forecast == null) return;
+            hoverCard.ShowSoon(this, widget.ScreenBounds, () => flyout?.Visible == true || menu.Visible);
+        };
         widget.RightClicked += () =>
         {
+            hoverCard.Cancel();
             Native.SetForegroundWindow(host.Handle);
             menu.Show(Cursor.Position);
         };
@@ -89,6 +111,14 @@ sealed class SkyGlanceApp : ApplicationContext
             Toast.Show(L.T("AppName"), L.F("Updated", Updater.CurrentText));
         updateTimer.Tick += async (_, _) => { updateTimer.Interval = 6 * 3600 * 1000; await CheckForUpdatesAsync(false); };
         updateTimer.Start(); // first check 45 s after start, then every 6 hours
+
+        // For a live check of the notification on a dry day: SKYGLANCE_DEMO_RAIN=1 shows a sample rain alert.
+        if (Environment.GetEnvironmentVariable("SKYGLANCE_DEMO_RAIN") == "1")
+        {
+            var once = new System.Windows.Forms.Timer { Interval = 6000 };
+            once.Tick += (_, _) => { once.Dispose(); DemoRainToast(); };
+            once.Start();
+        }
     }
 
     static Icon LoadIcon()
@@ -102,6 +132,9 @@ sealed class SkyGlanceApp : ApplicationContext
         widget.Ensure(); // handles Explorer restarts and tray width changes
         if (DateTime.UtcNow >= nextFetchUtc && !Fetching) _ = RefreshAsync();
         if (S.ShowExtremes && DateTime.UtcNow >= nextWorldUtc && !fetchingWorld) _ = RefreshWorldAsync();
+        if ((S.ShowAirQuality || S.AirDot) && !fetchingAir && DateTime.UtcNow >= nextAirTryUtc && ActivePlace is { } p
+            && (!air.TryGetValue(p.Key, out var a) || (DateTime.UtcNow - a.FetchedUtc).TotalMinutes >= 60)) _ = RefreshAirAsync(p);
+        CheckRain();
         UpdateWidget(); // the current hour moves on even between fetches
     }
 
@@ -131,6 +164,12 @@ sealed class SkyGlanceApp : ApplicationContext
             // Stored under the coordinates asked for: Open-Meteo snaps them to its grid in the answer.
             var f = await WeatherService.FetchAsync(place.Latitude, place.Longitude);
             forecasts[place.Key] = f;
+            // Rain alerts are about where I am: fetch my location too when another city is shown.
+            if (S.RainAlerts && S.HasLocation && HomeKey != place.Key)
+            {
+                try { forecasts[HomeKey] = await WeatherService.FetchAsync(S.Latitude, S.Longitude); }
+                catch (Exception ex) { Log.Error(ex); } // the city shown still counts as fetched
+            }
             LastFetchFailed = false;
             failures = 0;
             nextFetchUtc = DateTime.UtcNow.AddMinutes(Math.Clamp(S.RefreshMinutes, 5, 180));
@@ -153,6 +192,52 @@ sealed class SkyGlanceApp : ApplicationContext
             Changed?.Invoke();
         }
     }
+
+    string HomeKey => Place.KeyOf(S.Latitude, S.Longitude);
+
+    /// <summary>Fetches the air at <paramref name="place"/>; a failure waits 10 minutes and never marks the weather offline.</summary>
+    async Task RefreshAirAsync(Place place)
+    {
+        if (Headless) return;
+        fetchingAir = true;
+        try
+        {
+            air[place.Key] = await WeatherService.FetchAirAsync(place.Latitude, place.Longitude);
+            nextAirTryUtc = DateTime.MinValue;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex);
+            nextAirTryUtc = DateTime.UtcNow.AddMinutes(10);
+        }
+        finally
+        {
+            fetchingAir = false;
+            UpdateWidget();
+            Changed?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Raises a notification when rain is about to start or stop at my location, from the 15-minute forecast.
+    /// Runs every tick against the saved forecast, so the alert comes on time however long the refresh interval is.
+    /// </summary>
+    void CheckRain()
+    {
+        if (Headless || !S.RainAlerts || !S.HasLocation || !forecasts.TryGetValue(HomeKey, out var f)) return;
+        if ((DateTime.UtcNow - f.FetchedUtc).TotalMinutes > 45) return; // too old to warn from
+        if (RainAlert.Check(f.Minutely, f.LocalNow(DateTime.UtcNow)) is not { } change) return;
+        // The same kind of change within 90 minutes is the same shower moving a slot or two between refreshes.
+        if (lastRainStarting == change.Starting && (DateTime.UtcNow - lastRainAlertUtc).TotalMinutes < 90) return;
+        lastRainStarting = change.Starting;
+        lastRainAlertUtc = DateTime.UtcNow;
+        string place = S.LocationName.Length > 0 ? S.LocationName : L.T("MyLocation");
+        Toast.Show(L.T("AppName"), L.F(change.Starting ? "RainStarting" : "RainStopping", L.Clock(change.At), place), ShowFlyout);
+    }
+
+    /// <summary>For testing on a real desktop: shows the rain notification as it would look.</summary>
+    internal void DemoRainToast() =>
+        Toast.Show(L.T("AppName"), L.F("RainStarting", L.Clock(LocalNow.AddMinutes(20)), S.LocationName.Length > 0 ? S.LocationName : L.T("MyLocation")), ShowFlyout);
 
     /// <summary>Fetches the world extremes; every hour, or after 10 minutes when it failed.</summary>
     async Task RefreshWorldAsync()
@@ -242,6 +327,7 @@ sealed class SkyGlanceApp : ApplicationContext
         string t = now is { } n ? UnitFormat.Temperature(n.tempC, S.Temperature) : "--";
         string cond = now is { } m ? L.Condition(m.code) : !S.HasLocation ? L.T("Location") : "";
         widget.SetContent(t, cond, S.ShowHighLow ? HighLow() ?? "" : null, now is { } k ? WeatherCode.Icon(k.code) : SkyIcon.Cloudy, now?.day ?? true, S.ShowCondition, L.Ar);
+        widget.SetExtras(S.AirDot && Air?.Category is { } c && c >= AirCategory.Poor ? Art.AirColor(c) : null, S.AnimateIcon);
     }
 
     // ---------- windows ----------
@@ -299,6 +385,7 @@ sealed class SkyGlanceApp : ApplicationContext
         if (s.AutoLocation && !S.AutoLocation) s.LocationUpdatedUtc = DateTime.MinValue; // detect again now
         S = s;
         L.Ar = S.Language == "ar";
+        L.Clock12 = S.Clock12;
         S.Save();
         widget.SetPlacement(S.WidgetSide == "Left", S.WidgetOffset);
         if (langChanged)

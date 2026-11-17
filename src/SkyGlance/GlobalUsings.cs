@@ -1,4 +1,6 @@
+global using SkyGlance.Core.Air;
 global using SkyGlance.Core.Places;
+global using SkyGlance.Core.Sky;
 global using SkyGlance.Core.Seasons;
 global using SkyGlance.Core.World;
 global using SkyGlance.Configuration;

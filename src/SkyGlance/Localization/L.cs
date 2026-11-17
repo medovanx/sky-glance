@@ -159,6 +159,46 @@ public static class L
         ["UpdateRestarting"] = ("Restarting into {0}...", "جارٍ إعادة التشغيل إلى {0}..."),
         ["Updated"] = ("Updated to version {0}.", "تم التحديث إلى الإصدار {0}."),
 
+        // Rain alerts and the hover card.
+        ["RainStarting"] = ("Rain likely to start around {0} in {1}.", "من المرجح أن يبدأ المطر نحو {0} في {1}."),
+        ["RainStopping"] = ("Rain likely to stop around {0} in {1}.", "من المرجح أن يتوقف المطر نحو {0} في {1}."),
+        ["RainAround"] = ("Rain around {0}", "مطر نحو {0}"),
+        ["DryAround"] = ("Dry around {0}", "يتوقف المطر نحو {0}"),
+        ["Notifications"] = ("Notifications", "الإشعارات"),
+        ["RainAlerts"] = ("Tell me when rain is about to start or stop", "أعلمني عندما يوشك المطر أن يبدأ أو يتوقف"),
+        ["RainAlertsNote"] = ("For my location, from the 15-minute forecast.", "لموقعي، من توقعات كل 15 دقيقة."),
+        ["HoverCardSetting"] = ("Show the next hours when pointing at the widget", "عرض الساعات القادمة عند الإشارة إلى الأداة"),
+        ["AnimateIcon"] = ("Let rain and snow fall in the widget", "تحريك المطر والثلج في الأداة"),
+        ["AirDot"] = ("Show a dot on the widget when the air is poor", "إظهار نقطة على الأداة عندما يكون الهواء سيئًا"),
+        ["ShowAirQuality"] = ("Air quality and pollen", "جودة الهواء وحبوب اللقاح"),
+        ["ShowSky"] = ("Moon and golden hour", "القمر والساعة الذهبية"),
+
+        // Air quality and pollen.
+        ["Air"] = ("Air", "الهواء"),
+        ["AirQuality"] = ("Air quality", "جودة الهواء"),
+        ["AirPollen"] = ("Pollen {0}", "اللقاح {0}"),
+        ["AirGood"] = ("Good", "جيد"), ["AirFair"] = ("Fair", "مقبول"), ["AirModerate"] = ("Moderate", "متوسط"),
+        ["AirPoor"] = ("Poor", "سيئ"), ["AirVeryPoor"] = ("Very poor", "سيئ جدًا"), ["AirExtremelyPoor"] = ("Extremely poor", "سيئ للغاية"),
+        ["PollenLow"] = ("low", "منخفض"), ["PollenModerate"] = ("moderate", "متوسط"), ["PollenHigh"] = ("high", "مرتفع"), ["PollenVeryHigh"] = ("very high", "مرتفع جدًا"),
+
+        // Moon and golden hour.
+        ["MoonNew"] = ("New moon", "محاق"), ["MoonWaxingCrescent"] = ("Waxing crescent", "هلال متزايد"),
+        ["MoonFirstQuarter"] = ("First quarter", "تربيع أول"), ["MoonWaxingGibbous"] = ("Waxing gibbous", "أحدب متزايد"),
+        ["MoonFull"] = ("Full moon", "بدر"), ["MoonWaningGibbous"] = ("Waning gibbous", "أحدب متناقص"),
+        ["MoonLastQuarter"] = ("Last quarter", "تربيع أخير"), ["MoonWaningCrescent"] = ("Waning crescent", "هلال متناقص"),
+        ["GoldenHour"] = ("Golden hour", "الساعة الذهبية"),
+        ["GoldenUntil"] = ("until {0}", "حتى {0}"),
+        ["NoGolden"] = ("None today", "لا توجد اليوم"),
+
+        // Compared with yesterday (the number goes before the words in English and after them in Arabic).
+        ["WarmerThanYesterday"] = ("warmer than yesterday", "أدفأ من أمس بـ"),
+        ["ColderThanYesterday"] = ("colder than yesterday", "أبرد من أمس بـ"),
+        ["SameAsYesterday"] = ("Same as yesterday", "مثل أمس"),
+
+        // The calendar's day.
+        ["HourByHour"] = ("Hour by hour", "ساعة بساعة"),
+        ["Clock12"] = ("12-hour clock (AM and PM)", "نظام 12 ساعة (ص و م)"),
+
         ["Compass0"] = ("N", "ش"), ["Compass1"] = ("NE", "ش ق"), ["Compass2"] = ("E", "ق"), ["Compass3"] = ("SE", "ج ق"),
         ["Compass4"] = ("S", "ج"), ["Compass5"] = ("SW", "ج غ"), ["Compass6"] = ("W", "غ"), ["Compass7"] = ("NW", "ش غ"),
 
@@ -205,11 +245,20 @@ public static class L
     public static string Condition(int code) => T(WeatherCode.Key(code));
 
 
-    /// <summary>"14:30" in both languages.</summary>
-    public static string Clock(DateTime t) => t.ToString("HH:mm", CultureInfo.InvariantCulture);
+    /// <summary>Show times on a 12-hour clock ("2:30 PM") instead of 24 hours ("14:30"); set from the settings.</summary>
+    public static bool Clock12 { get; set; }
 
-    /// <summary>Hour label in the hourly strip: "14:00".</summary>
-    public static string Hour(DateTime t) => t.ToString("HH:00", CultureInfo.InvariantCulture);
+    static string AmPm(DateTime t) => t.Hour < 12 ? (Ar ? "ص" : "AM") : (Ar ? "م" : "PM");
+
+    /// <summary>"2:30 PM" or "14:30", with Latin digits in both languages.</summary>
+    public static string Clock(DateTime t) => Clock12
+        ? t.ToString("h:mm", CultureInfo.InvariantCulture) + " " + AmPm(t)
+        : t.ToString("HH:mm", CultureInfo.InvariantCulture);
+
+    /// <summary>Hour label in the hourly charts: "2 PM" or "14:00".</summary>
+    public static string Hour(DateTime t) => Clock12
+        ? t.ToString("%h", CultureInfo.InvariantCulture) + " " + AmPm(t)
+        : t.ToString("HH:00", CultureInfo.InvariantCulture);
 
     /// <summary>"Tue" / "الثلاثاء".</summary>
     public static string DayName(DateOnly d) => d.ToDateTime(TimeOnly.MinValue).ToString(Ar ? "dddd" : "ddd", Culture);

@@ -11,6 +11,7 @@ static class DemoData
     {
         Language = lang,
         AutoLocation = false,
+        Clock12 = true,
         HasLocation = true,
         Latitude = Lat,
         Longitude = Lon,
@@ -30,7 +31,8 @@ static class DemoData
     {
         var date = new DateOnly(2003, 8, 1);
         var hours = Enumerable.Range(0, 24).Select(h => new HourlyPoint(date.ToDateTime(new TimeOnly(h, 0)),
-            Math.Round(27 + 8 * Math.Cos((h - 15) / 24.0 * Math.PI * 2), 1), h is >= 11 and <= 17 ? 1 : 0, 0, h is >= 7 and < 21)).ToList();
+            Math.Round(27 + 8 * Math.Cos((h - 15) / 24.0 * Math.PI * 2), 1), h is >= 17 and <= 18 ? 80 : h is >= 11 and <= 16 ? 1 : 0, 0, h is >= 7 and < 21,
+            h switch { 17 => 2.4, 18 => 0.8, _ => 0 })).ToList(); // a summer storm in the early evening
         return new DayReport(date, DaySource.Archive, 1, 35.2, 19.4, 0, null, 17.8, null,
             date.ToDateTime(new TimeOnly(6, 41)), date.ToDateTime(new TimeOnly(20, 51)), hours);
     }
@@ -63,6 +65,12 @@ static class DemoData
 
         var hourly = new List<HourlyPoint>();
         var start = today.AddHours(14);
+        // Yesterday was a little cooler, so the flyout says how much warmer it is now.
+        for (int i = -24; i < 0; i++)
+        {
+            var at = start.AddHours(i);
+            hourly.Add(new HourlyPoint(at, Math.Round(15.5 + 4 * Math.Cos((at.Hour - 15) / 24.0 * Math.PI * 2), 1), 1, 0, at.Hour is >= 7 and < 18));
+        }
         int[] codes = [2, 2, 1, 1, 0, 0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3, 61, 80, 80, 61, 3, 3, 2, 2, 1, 1, 1, 0, 0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1];
         for (int i = 0; i < 48; i++)
         {
@@ -77,7 +85,17 @@ static class DemoData
         var daily = days.Select((d, i) => new DailyPoint(DateOnly.FromDateTime(today.AddDays(i)), d.code, d.max, d.min, d.rain,
             today.AddDays(i).AddHours(7).AddMinutes(18 + i), today.AddDays(i).AddHours(17).AddMinutes(52 - i), 4 + i % 3, 18 + i * 2)).ToList();
 
+        // A passing shower from 14:45, so the hover card shows rain about to start.
+        var minutely = Enumerable.Range(-1, 13).Select(i => new RainSlot(today.AddHours(14).AddMinutes(15 * i), i is >= 3 and <= 6 ? 0.4 + 0.2 * (i % 2) : 0)).ToList();
         var current = new CurrentConditions(nowLocal, 21.2, 20.6, 58, true, 2, 14.4, 315, 27.0, 0, 1017.2, 40);
-        return new Forecast(Lat, Lon, "Europe/Lisbon", offset, utc.AddMinutes(-6), current, hourly, daily);
+        return new Forecast(Lat, Lon, "Europe/Lisbon", offset, utc.AddMinutes(-6), current, hourly, daily, minutely);
+    }
+
+    /// <summary>Made-up air: good, with a moderate grass pollen count, for every demo place.</summary>
+    public static Dictionary<string, AirReading> Air()
+    {
+        var a = new AirReading(DateTime.Now, 18, 6.2, 11.0, 58.0, 9.4,
+            new Dictionary<PollenType, double> { [PollenType.Grass] = 26, [PollenType.Olive] = 4 }, DateTime.UtcNow.AddMinutes(-10));
+        return new() { [Place.KeyOf(Lat, Lon)] = a, [Place.KeyOf(35.69, 139.69)] = a, [Place.KeyOf(64.15, -21.94)] = a };
     }
 }

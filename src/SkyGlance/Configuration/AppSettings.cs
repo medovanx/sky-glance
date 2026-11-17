@@ -33,6 +33,27 @@ public sealed class AppSettings
     public bool ShowExtremes { get; set; } = true;
     /// <summary>Show the season at the place shown in the flyout.</summary>
     public bool ShowSeason { get; set; } = true;
+    /// <summary>Show the air quality (and pollen, in Europe) in the flyout.</summary>
+    public bool ShowAirQuality { get; set; } = true;
+    /// <summary>Show the moon phase and the next golden hour in the flyout.</summary>
+    public bool ShowSky { get; set; } = true;
+    /// <summary>A coloured dot on the widget when the air is poor or worse.</summary>
+    public bool AirDot { get; set; } = true;
+    /// <summary>A notification when rain is about to start or stop at my location.</summary>
+    public bool RainAlerts { get; set; } = true;
+    /// <summary>A small card with the next hours when the mouse rests on the widget.</summary>
+    public bool HoverCard { get; set; } = true;
+    /// <summary>Rain and snow drift in the widget's weather picture. Off by default: it redraws about ten times a second.</summary>
+    public bool AnimateIcon { get; set; }
+    /// <summary>Times on a 12-hour clock with AM and PM; by default the same as the Windows clock.</summary>
+    public bool Clock12 { get; set; } = SystemClock12();
+
+    static bool SystemClock12()
+    {
+        try { return CultureInfo.CurrentCulture.DateTimeFormat.ShortTimePattern.Contains('h'); }
+        catch { return false; }
+    }
+
     /// <summary>Minutes between forecast refreshes.</summary>
     public int RefreshMinutes { get; set; } = 15;
 

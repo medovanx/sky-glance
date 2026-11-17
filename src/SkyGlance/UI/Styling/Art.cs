@@ -21,7 +21,7 @@ static class Art
                         IconGeneral = "\uE771", IconSearch = "\uE721", IconTaskbar = "\uE7C4", IconRuler = "\uECC6",
                         IconWeather = "\uE9CA", IconChevronDown = "\uE70D", IconCalendar = "\uE787", IconPrev = "\uE76B", IconNext = "\uE76C", IconPrevYear = "\uE892", IconNextYear = "\uE893", IconDelete = "\uE74D", IconAdd = "\uE710",
                         IconOpen = "\uE8A7", IconDocument = "\uE8A5",
-                        IconInfo = "\uE946", IconGlobe = "\uE774", IconPower = "\uE7E8";
+                        IconInfo = "\uE946", IconGlobe = "\uE774", IconPower = "\uE7E8", IconBell = "\uEA8F";
 
     public static readonly string IconFontName =
         new System.Drawing.Text.InstalledFontCollection().Families.Any(f => f.Name == "Segoe Fluent Icons")
@@ -164,7 +164,8 @@ static class Art
     }
 
     /// <summary>Draws the picture for <paramref name="icon"/> centred in a square inside <paramref name="box"/>.</summary>
-    public static void Weather(Graphics g, RectangleF box, SkyIcon icon, bool day)
+    /// <param name="drift">0 to 1 to draw the rain or snow partway through its fall (the widget's animation); negative for the still picture.</param>
+    public static void Weather(Graphics g, RectangleF box, SkyIcon icon, bool day, float drift = -1)
     {
         float n = Math.Min(box.Width, box.Height);
         float x = box.Left + (box.Width - n) / 2, y = box.Top + (box.Height - n) / 2;
@@ -201,35 +202,57 @@ static class Art
                 PointF[] bolt = [new(x + n * 0.54f, y + n * 0.56f), new(x + n * 0.38f, y + n * 0.8f), new(x + n * 0.5f, y + n * 0.8f),
                                  new(x + n * 0.42f, y + n * 0.98f), new(x + n * 0.66f, y + n * 0.72f), new(x + n * 0.53f, y + n * 0.72f), new(x + n * 0.62f, y + n * 0.56f)];
                 using (var b = new SolidBrush(Bolt)) g.FillPolygon(b, bolt);
-                Drops(g, x, y, n, [0.24f, 0.8f], 0.16f);
+                Drops(g, x, y, n, [0.24f, 0.8f], 0.16f, drift);
                 break;
             default: // drizzle, rain, sleet, snow
                 Cloud(g, top, icon == SkyIcon.Rain ? CloudGrey : CloudWhite, n);
-                if (icon == SkyIcon.Snow) Flakes(g, x, y, n, [0.28f, 0.5f, 0.72f]);
-                else if (icon == SkyIcon.Sleet) { Drops(g, x, y, n, [0.3f, 0.66f], 0.2f); Flakes(g, x, y, n, [0.48f]); }
-                else Drops(g, x, y, n, icon == SkyIcon.Drizzle ? [0.32f, 0.52f, 0.72f] : [0.26f, 0.44f, 0.62f, 0.8f], icon == SkyIcon.Drizzle ? 0.12f : 0.22f);
+                if (icon == SkyIcon.Snow) Flakes(g, x, y, n, [0.28f, 0.5f, 0.72f], drift);
+                else if (icon == SkyIcon.Sleet) { Drops(g, x, y, n, [0.3f, 0.66f], 0.2f, drift); Flakes(g, x, y, n, [0.48f], drift); }
+                else Drops(g, x, y, n, icon == SkyIcon.Drizzle ? [0.32f, 0.52f, 0.72f] : [0.26f, 0.44f, 0.62f, 0.8f], icon == SkyIcon.Drizzle ? 0.12f : 0.22f, drift);
                 break;
         }
         g.Restore(st);
     }
 
-    static void Drops(Graphics g, float x, float y, float n, float[] xs, float len)
+    /// <summary>Where drop <paramref name="i"/> is in its fall (0 to 1) when animating, staggered so they don't move together.</summary>
+    static float Fall(float drift, int i) => (drift + i * 0.37f) % 1f;
+
+    static void Drops(Graphics g, float x, float y, float n, float[] xs, float len, float drift = -1)
     {
-        using var pen = new Pen(Drop, Math.Max(1.2f, n * 0.065f)) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        float w = Math.Max(1.2f, n * 0.065f);
         for (int i = 0; i < xs.Length; i++)
         {
-            float top = y + n * (i % 2 == 0 ? 0.72f : 0.76f);
-            g.DrawLine(pen, x + n * xs[i], top, x + n * (xs[i] - 0.06f), top + n * len);
+            float top = y + n * (i % 2 == 0 ? 0.72f : 0.76f), dx = 0;
+            int alpha = 255;
+            if (drift >= 0)
+            {
+                // Fall a short way along the drop's slant from under the cloud, fading out near the end.
+                float f = Fall(drift, i), d = n * 0.16f * f;
+                top = y + n * 0.66f + d;
+                dx = -d * 0.27f;
+                alpha = (int)(255 * Math.Min(1f, Math.Min(f * 5f, (1 - f) * 2.2f)));
+            }
+            using var pen = new Pen(Color.FromArgb(alpha, Drop), w) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+            g.DrawLine(pen, x + n * xs[i] + dx, top, x + n * (xs[i] - 0.06f) + dx, top + n * len);
         }
     }
 
-    static void Flakes(Graphics g, float x, float y, float n, float[] xs)
+    static void Flakes(Graphics g, float x, float y, float n, float[] xs, float drift = -1)
     {
-        using var pen = new Pen(Color.FromArgb(235, 244, 255), Math.Max(1f, n * 0.04f)) { StartCap = LineCap.Round, EndCap = LineCap.Round };
-        using var rim = new Pen(Color.FromArgb(90, 70, 110, 160), Math.Max(1f, n * 0.07f)) { StartCap = LineCap.Round, EndCap = LineCap.Round };
         for (int i = 0; i < xs.Length; i++)
         {
             float cx = x + n * xs[i], cy = y + n * (i % 2 == 0 ? 0.82f : 0.88f), r = n * 0.08f;
+            int alpha = 255;
+            if (drift >= 0)
+            {
+                // Snow floats down slowly, swaying from side to side.
+                float f = Fall(drift, i);
+                cy = y + n * 0.74f + n * 0.2f * f;
+                cx += (float)Math.Sin((f + i * 0.3f) * Math.PI * 2) * n * 0.03f;
+                alpha = (int)(255 * Math.Min(1f, Math.Min(f * 5f, (1 - f) * 2.5f)));
+            }
+            using var pen = new Pen(Color.FromArgb(alpha, 235, 244, 255), Math.Max(1f, n * 0.04f)) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+            using var rim = new Pen(Color.FromArgb(alpha * 90 / 255, 70, 110, 160), Math.Max(1f, n * 0.07f)) { StartCap = LineCap.Round, EndCap = LineCap.Round };
             foreach (var p in new[] { rim, pen })
                 for (int k = 0; k < 3; k++)
                 {
@@ -254,6 +277,47 @@ static class Art
                 using var p = CloudPath(new RectangleF(xx, yy, cell * 0.6f, cell * 0.32f));
                 g.FillPath(brush, p);
             }
+        g.Restore(st);
+    }
+
+    /// <summary>True for pictures with something falling, which the widget can animate.</summary>
+    public static bool Falls(SkyIcon icon) => icon is SkyIcon.Drizzle or SkyIcon.Rain or SkyIcon.Sleet or SkyIcon.Snow or SkyIcon.Thunder;
+
+    /// <summary>Colour of the air quality bands, from green (good) to purple (extremely poor).</summary>
+    public static Color AirColor(AirCategory c) => c switch
+    {
+        AirCategory.Good => Color.FromArgb(80, 200, 120),
+        AirCategory.Fair => Color.FromArgb(150, 205, 80),
+        AirCategory.Moderate => Color.FromArgb(240, 200, 60),
+        AirCategory.Poor => Color.FromArgb(245, 140, 50),
+        AirCategory.VeryPoor => Color.FromArgb(230, 70, 70),
+        _ => Color.FromArgb(160, 80, 200),
+    };
+
+    /// <summary>
+    /// The moon as it looks tonight: the lit part of the disc for a fraction <paramref name="lit"/> (0 new, 1 full),
+    /// on the right while it waxes and the left while it wanes (as seen from the northern hemisphere; flipped south of the equator).
+    /// </summary>
+    public static void MoonPicture(Graphics g, RectangleF box, double lit, bool litOnRight, Color dark)
+    {
+        var st = g.Save();
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        float n = Math.Min(box.Width, box.Height);
+        var disc = new RectangleF(box.X + (box.Width - n) / 2, box.Y + (box.Height - n) / 2, n, n);
+        using (var b = new SolidBrush(dark)) g.FillEllipse(b, disc);
+        // The terminator is an ellipse whose half-width runs from n/2 (new or full) through 0 (quarter).
+        float half = n / 2, cx = disc.X + half, k = (float)Math.Abs(1 - 2 * lit) * half;
+        using var path = new GraphicsPath();
+        // Outer edge: the half of the disc on the lit side.
+        path.AddArc(disc, litOnRight ? -90 : 90, 180);
+        // Inner edge: the terminator back to the top, bulging out (gibbous) or in (crescent).
+        var term = new RectangleF(cx - k, disc.Y, Math.Max(0.01f, 2 * k), n);
+        // From the bottom (lit on the right) or the top (lit on the left) back round: a gibbous moon's terminator
+        // bulges into the dark half, a crescent's into the lit half.
+        bool gibbous = lit > 0.5;
+        path.AddArc(term, litOnRight ? 90 : -90, gibbous ? 180 : -180);
+        path.CloseFigure();
+        using (var b = new SolidBrush(Color.FromArgb(245, 240, 220))) g.FillPath(b, path);
         g.Restore(st);
     }
 
