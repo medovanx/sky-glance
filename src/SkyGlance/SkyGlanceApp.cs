@@ -439,6 +439,16 @@ sealed class SkyGlanceApp : ApplicationContext
         }
         menu.Items.Add(unitMenu);
 
+        // Each language is named in itself, so it can be found from either one.
+        var langMenu = new ToolStripMenuItem(L.T("Language"));
+        foreach (var (code, name) in new[] { ("en", "English"), ("ar", "العربية") })
+        {
+            var item = new ToolStripMenuItem(name) { Checked = S.Language == code };
+            item.Click += (_, _) => { if (S.Language == code) return; var s = S.Clone(); s.Language = code; ApplySettings(s); };
+            langMenu.DropDownItems.Add(item);
+        }
+        menu.Items.Add(langMenu);
+
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(L.T("Settings"), null, (_, _) => ShowSettings());
         menu.Items.Add(L.T("CheckForUpdates"), null, async (_, _) =>

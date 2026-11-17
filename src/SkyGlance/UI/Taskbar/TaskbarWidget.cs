@@ -320,7 +320,8 @@ sealed class TaskbarWidget : NativeWindow
             int textX = rtl ? pad : pad + iconS + gap;
             using var sf = new StringFormat
             {
-                Alignment = rtl ? StringAlignment.Far : StringAlignment.Near,
+                // Near is the reading start: the right edge once DirectionRightToLeft is set.
+                Alignment = StringAlignment.Near,
                 FormatFlags = StringFormatFlags.NoWrap | (rtl ? StringFormatFlags.DirectionRightToLeft : 0),
                 Trimming = StringTrimming.EllipsisCharacter,
             };
