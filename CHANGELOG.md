@@ -3,6 +3,11 @@
 All notable changes to Sky Glance are listed here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.2] - 2026-11-17
+
+### Added
+- While an update is checked for or installed, a slim progress line runs along the bottom of the taskbar widget, so a check started from the right-click menu shows it is working. The menu item says what the update is doing and can't be clicked twice.
+
 ## [1.2.1] - 2026-11-17
 
 ### Added
