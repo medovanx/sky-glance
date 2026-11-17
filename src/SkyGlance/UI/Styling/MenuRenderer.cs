@@ -9,8 +9,8 @@ namespace SkyGlance.UI.Styling;
 /// </summary>
 sealed class MenuRenderer(Theme t) : ToolStripRenderer
 {
-    /// <summary>Put in an item's Tag to draw this icon-font glyph in the image margin.</summary>
-    public sealed record MenuGlyph(string Glyph, Color? Color = null);
+    /// <summary>Put in an item's Tag to draw this icon-font glyph, or a picture, in the image margin.</summary>
+    public sealed record MenuGlyph(string Glyph, Color? Color = null, Image? Picture = null);
 
     const string Rounded = "SkyGlance.Rounded";
     readonly Dictionary<ToolStrip, Rectangle> margins = [];
@@ -80,13 +80,16 @@ sealed class MenuRenderer(Theme t) : ToolStripRenderer
     {
         var it = e.Item;
         e.TextColor = !it.Enabled ? t.Dim : it is ToolStripMenuItem { Checked: true } ? t.Accent : t.Text;
+        // WinForms lays the text out as if the row had no padding, so it sits at the top of a padded row.
+        // Centre it in the row; the icon is then centred on the same line.
+        var r = e.TextRectangle;
+        if (it is not ToolStripSeparator && it.Height > r.Height) e.TextRectangle = r = new Rectangle(r.X, (it.Height - r.Height) / 2, r.Width, r.Height);
         base.OnRenderItemText(e);
-        DrawGlyph(e.Graphics, it, e.TextRectangle);
+        DrawGlyph(e.Graphics, it, r);
     }
 
     /// <summary>
-    /// The item's icon in the image margin, centred on the text line rather than the row:
-    /// the menu sets its text a few pixels above the row's middle.
+    /// The item's icon in the image margin, centred on the (re-centred) text line.
     /// </summary>
     void DrawGlyph(Graphics g, ToolStripItem it, Rectangle text)
     {
@@ -94,9 +97,18 @@ sealed class MenuRenderer(Theme t) : ToolStripRenderer
         float s = owner.DeviceDpi / 96f;
         bool rtl = owner.RightToLeft == RightToLeft.Yes;
         float w = m.Width;
-        // The ink of a text line sits a little below its box's middle (room above for accents), so nudge down.
-        var box = new RectangleF(rtl ? it.Width - w : 0, text.Top + 1 * s, w, text.Height);
+        var box = new RectangleF(rtl ? it.Width - w : 0, text.Top, w, text.Height);
         box.Offset(rtl ? -2 * s : 2 * s, 0);
+        if (mg.Picture is { } pic)
+        {
+            // A picture (the app icon) at full colour even on a disabled row.
+            float n = 16 * s;
+            var old = g.InterpolationMode;
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.DrawImage(pic, new RectangleF(box.X + (box.Width - n) / 2, box.Y + (box.Height - n) / 2, n, n));
+            g.InterpolationMode = old;
+            return;
+        }
         Art.GlyphCentered(g, mg.Glyph, 14 * s, box, !it.Enabled ? Color.FromArgb(120, t.Dim) : mg.Color ?? t.Dim);
     }
 

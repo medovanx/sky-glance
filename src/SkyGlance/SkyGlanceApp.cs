@@ -423,7 +423,7 @@ sealed class SkyGlanceApp : ApplicationContext
         }
 
         // Which app and version this is, as a quiet line on top.
-        menu.Items.Add(new ToolStripMenuItem($"{L.T("AppName")}  {L.Ltr(Updater.CurrentText)}") { Enabled = false, Tag = new MenuRenderer.MenuGlyph(Art.IconInfo) });
+        menu.Items.Add(new ToolStripMenuItem($"{L.T("AppName")}  {L.Ltr(Updater.CurrentText)}") { Enabled = false, Tag = new MenuRenderer.MenuGlyph("", Picture: MenuIcon) });
         menu.Items.Add(new ToolStripSeparator());
 
         var show = Item(L.T("ShowWeather"), Art.IconWeather, ShowFlyout);
@@ -484,7 +484,9 @@ sealed class SkyGlanceApp : ApplicationContext
 
     /// <summary>For screenshots: the right-click menu built as it would open now.</summary>
     internal ContextMenuStrip MenuForShot(bool dark) { shotTheme = new Theme(dark); BuildMenu(); return menu; }
-    Theme? shotTheme; // the theme a screenshot asks for; the menu rebuilds itself as it opens
+    Theme? shotTheme;
+    Bitmap? menuIcon;
+    Bitmap MenuIcon => menuIcon ??= new Icon(AppIcon, 32, 32).ToBitmap(); // drawn at 16 px, crisp up to 200% // the theme a screenshot asks for; the menu rebuilds itself as it opens
 
     public const string ShowFlyoutMessage = "SkyGlance.ShowFlyout";
 
